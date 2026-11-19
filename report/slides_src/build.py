@@ -179,8 +179,8 @@ va = ch.value_axis; va.maximum_scale = 70; va.minimum_scale = 0; va.has_major_gr
 va.visible = False
 ca = ch.category_axis; ca.tick_labels.font.size = Pt(10); ca.tick_labels.font.name = FONT
 ca.tick_labels.font.color.rgb = rgb(INK); ca.format.line.color.rgb = rgb(BORDER)
-text(s, 0.4, 6.05, 4.5, 0.6, "31B: 40 games per cell (C1 p = .037, C2 p = .003 vs C0).  4B: same 64 seeds; "
-     "AWR p < 10⁻⁴, DAgger p = .011, no history p = .012 vs untrained.", size=9, color=GRAY, italic=True)
+text(s, 0.4, 6.05, 4.5, 0.6, "31B: 40 games per setting.  4B: same 64 maps for every model. On maps where only one "
+     "model won, AWR beat untrained 26 to 3 and DAgger beat it 18 to 5.", size=9, color=GRAY, italic=True)
 
 label(s, 5.15, 2.62, 4.45, "IN PROGRESS:  MULTI-AGENT RL FROM 53 % SFT")
 cards = [

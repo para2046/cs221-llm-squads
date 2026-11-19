@@ -20,4 +20,3 @@ report/*.blg
 report/*.out
 report/tpl/
 report/*backup*
-report/*.pptx
