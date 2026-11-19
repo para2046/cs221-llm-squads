@@ -13,6 +13,8 @@ from pptx.enum.chart import XL_CHART_TYPE, XL_LABEL_POSITION
 TEMPLATE = "/home/users/para2046/cs221/project/NavLM_milestone3.pptx"
 OUT = sys.argv[1]
 DATA = json.load(open(sys.argv[2]))  # live numbers
+MERGE = len(sys.argv) > 3 and sys.argv[3] == "merge"   # 3-slide version: slides 3 and 4 combined
+NPAGES = 3 if MERGE else 4
 
 RED, NAVY, GRAY, INK = "C00000", "1F3A68", "555555", "1A1A1A"
 LIGHT, BORDER, WHITE = "F6F6F6", "D0D0D0", "FFFFFF"
@@ -84,7 +86,7 @@ def frame(s, n, section, title, subtitle=None):
     if subtitle:
         text(s, 0.4, 1.33, 9.2, 0.34, subtitle, size=13, color=GRAY, name="Subtitle")
     text(s, 0.4, 6.95, 6.0, 0.25, FOOTER, size=9, color=GRAY)
-    text(s, 7.5, 6.95, 2.1, 0.25, f"{n} / 4", size=9, color=GRAY, align=PP_ALIGN.RIGHT)
+    text(s, 7.5, 6.95, 2.1, 0.25, f"{n} / {NPAGES}", size=9, color=GRAY, align=PP_ALIGN.RIGHT)
 
 
 def label(s, x, y, w, t):
@@ -251,6 +253,85 @@ rect(s, 6.05, 2.15, 3.55, 4.2, WHITE, BORDER, MSO_SHAPE.ROUNDED_RECTANGLE)
 text(s, 6.15, 2.22, 3.35, 4.05, [[(a, {"bold": True, "color": NAVY}), (b, {})] for a, b in pts], size=10, space_after=6)
 text(s, 0.4, 6.42, 9.2, 0.45, "Grouped = our 5 units start together in the centre and are surrounded; split = units start "
      "scattered. API models: evaluation only, never used as training data.", size=9, color=GRAY, italic=True)
+
+if MERGE:   # drop slides 3 and 4, add one combined results slide
+    for sid in list(prs.slides._sldIdLst)[2:]:
+        prs.part.drop_rel(sid.rId); prs.slides._sldIdLst.remove(sid)
+    s = prs.slides.add_slide(BLANK)
+    frame(s, 3, "3.  Setup & Results", "Setup, Results & Experiments in Progress",
+          "Learning from 31B lifts 4B from 17 % to 53 %; on the same new maps, 31B is still ahead.")
+    text(s, 0.4, 1.7, 9.2, 0.28, [[("Setup:  ", {"bold": True, "color": NAVY}),
+         ("SMACv2 Protoss 5 v 5  ·  opponent: SC2 built-in AI, level 7  ·  each model plays the same fixed maps "
+          "(seeds never used in training)", {})]], size=10, color=GRAY)
+
+    def bars(x, y, w, h, cats, series, colors, maxv, legend=False, fmt='0.#'):
+        cd = CategoryChartData(); cd.categories = list(reversed(cats))
+        for name, vals in series:
+            cd.add_series(name, list(reversed(vals)))
+        ch = s.shapes.add_chart(XL_CHART_TYPE.BAR_CLUSTERED, Inches(x), Inches(y), Inches(w), Inches(h), cd).chart
+        ch.has_title = False; ch.has_legend = legend
+        if legend:
+            from pptx.enum.chart import XL_LEGEND_POSITION
+            ch.legend.position = XL_LEGEND_POSITION.BOTTOM; ch.legend.include_in_layout = False
+            ch.legend.font.size = Pt(9); ch.legend.font.name = FONT
+        pl = ch.plots[0]; pl.gap_width = 50; pl.has_data_labels = True
+        d = pl.data_labels; d.number_format = fmt; d.number_format_is_linked = False
+        d.position = XL_LABEL_POSITION.OUTSIDE_END; d.font.size = Pt(8); d.font.name = FONT; d.font.color.rgb = rgb(INK)
+        va = ch.value_axis; va.maximum_scale = maxv; va.minimum_scale = 0; va.has_major_gridlines = False; va.visible = False
+        ca = ch.category_axis; ca.tick_labels.font.size = Pt(9); ca.tick_labels.font.name = FONT
+        ca.tick_labels.font.color.rgb = rgb(INK); ca.format.line.color.rgb = rgb(BORDER)
+        return ch
+
+    # left: what lifts the 4B (development maps)
+    label(s, 0.4, 2.05, 4.45, "CHANNELS (31B) AND LEARNING FROM 31B (4B):  WIN %")
+    c1 = ["31B · C0 no channel", "31B · C1 + states", "31B · C2 + messages", "4B · untrained", "4B · no history",
+          "4B · DAgger (SFT)", "4B · AWR (SFT)"]
+    ch = bars(0.4, 2.38, 4.45, 2.0, c1, [("Win rate", [25, 50, 60, 17.2, 3.1, 37.5, 53.1])], None, 70)
+    for pt_i, c in enumerate(reversed(c1)):
+        pt = ch.plots[0].series[0].points[pt_i]; pt.format.fill.solid()
+        pt.format.fill.fore_color.rgb = rgb(NAVY if c.startswith("31B") else RED)
+    text(s, 0.4, 4.38, 4.45, 0.36, "31B: 40 random games each. 4B: 64 development maps (100000+); maps only one won: "
+         "AWR beat untrained 26 to 3.", size=8, color=GRAY, italic=True)
+
+    # right: same 64 new maps, every model, by start type
+    label(s, 5.15, 2.05, 4.45, "SAME 64 NEW MAPS: WIN %  BY START TYPE")
+    rows = SM["rows"]
+    short = {"Gemma 4 31B (teacher)": "31B teacher", "GPT-5.6 Luna": "GPT-5.6 Luna", "Gemini 3.5 Flash-Lite": "Gemini Flash-Lite",
+             "4B MAPPO (best RL so far)": "4B MAPPO (RL)", "4B SFT (AWR from 31B)": "4B SFT"}
+    c2 = [f"{short.get(r['model'], r['model'])} · {r['win']:.0f}" for r in rows]
+    ch = bars(5.15, 2.42, 4.45, 2.15, c2, [(f"Split start ({SM['n_split']})", [r["split"] for r in rows]),
+                                           (f"Grouped start ({SM['n_grouped']})", [r["grouped"] for r in rows])],
+              None, 100, legend=True, fmt='0')
+    for ser, col in zip(ch.plots[0].series, (RED, NAVY)):
+        ser.format.fill.solid(); ser.format.fill.fore_color.rgb = rgb(col)
+
+    # bottom left: RL in progress
+    rect(s, 0.4, 4.75, 4.45, 2.05, WHITE, BORDER, MSO_SHAPE.ROUNDED_RECTANGLE)
+    text(s, 0.5, 4.8, 4.25, 0.26, "IN PROGRESS:  MULTI-AGENT RL FROM THE 53 % SFT", size=10, color=NAVY, bold=True)
+    text(s, 0.5, 5.08, 4.25, 1.7, [
+        [("Reward (never shown to agents):  ", {"bold": True, "color": NAVY}),
+         ("team damage and kills each step, win +2 / loss −2 at the end, plus each unit's own credit (sums to zero).", {})],
+        [("Methods (same start, one shared model):  ", {"bold": True, "color": NAVY}),
+         ("MAPPO with a critic that sees the whole map; GRPO against the built-in AI; GRPO against built-in AI + 31B.", {})],
+        [("Status:  ", {"bold": True, "color": NAVY}), ("training; each is tested on the same 64 new maps.", {})]],
+        size=9, space_after=4)
+
+    # bottom right: what the same maps show
+    R = {r["model"]: r for r in rows}
+    t31, mp, sft = R["Gemma 4 31B (teacher)"], R["4B MAPPO (best RL so far)"], R["4B SFT (AWR from 31B)"]
+    lu, ge = R["GPT-5.6 Luna"], R["Gemini 3.5 Flash-Lite"]
+    rect(s, 5.15, 4.75, 4.45, 2.05, LIGHT, NAVY, MSO_SHAPE.ROUNDED_RECTANGLE)
+    text(s, 5.25, 4.8, 4.25, 0.26, "WHAT THE SAME MAPS SHOW", size=10, color=NAVY, bold=True)
+    text(s, 5.25, 5.08, 4.25, 1.7, [
+        [("31B is still clearly ahead of 4B: ", {"bold": True, "color": NAVY}),
+         (f"maps only one won: 31B {t31['only_this']}, SFT {t31['only_sft']}. The gap is in split starts "
+          f"({t31['split']:.0f} % vs {sft['split']:.0f} %).", {})],
+        [("Best RL so far (MAPPO): ", {"bold": True, "color": NAVY}),
+         (f"{mp['win']:.0f} % vs SFT {sft['win']:.0f} %, maps only one won {mp['only_this']} to {mp['only_sft']}: "
+          "a lead, not yet confirmed.", {})],
+        [("API models are not better here: ", {"bold": True, "color": NAVY}),
+         (f"GPT-5.6 Luna {lu['win']:.0f} %, Gemini Flash-Lite {ge['win']:.0f} % (evaluation only).", {})]],
+        size=9, space_after=4)
 
 prs.save(OUT)
 print("saved", OUT)
