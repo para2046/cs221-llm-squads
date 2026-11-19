@@ -93,7 +93,7 @@ def label(s, x, y, w, t):
 # ---------------- slide 1: problem ----------------
 s = prs.slides.add_slide(BLANK)
 frame(s, 1, "1.  Problem", "Can a Squad of Small LLMs Fight as a Team?",
-      "Each of 5 Protoss units runs its own Gemma 4 call on text, with no shared brain and no tactics in the prompt.")
+      "Each of 5 Protoss units runs its own Gemma 4 call on text; no shared brain, no tactics given.")
 label(s, 0.4, 1.8, 4.4, "ONE LLM CALL PER UNIT, EVERY STEP")
 steps = [
     ("Text observation, per unit", "own state  ·  visible allies & enemies  ·  its last 5 steps"),
@@ -136,10 +136,10 @@ for q, h, b in qs:
 s = prs.slides.add_slide(BLANK)
 frame(s, 2, "2.  Demo", None)
 text(s, 0.4, 1.9, 9.2, 1.5, "DEMO", size=88, color=NAVY, bold=True, align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
-text(s, 0.4, 3.4, 9.2, 0.4, "Same scenario (seed 100046), same opening positions, four different squads",
+text(s, 0.4, 3.4, 9.2, 0.4, "Interactive replays of four games against the SC2 built-in AI",
      size=14, color=GRAY, align=PP_ALIGN.CENTER)
-cards = [("31B  ·  C0", "no channel", "Loss"), ("31B  ·  C2", "with messages", "Win"),
-         ("4B  ·  untrained", "C2", "Loss"), ("4B  ·  after SFT", "AWR, C2", "Win")]
+cards = [("31B  ·  C0", "no channel", "Loss"), ("31B  ·  C2", "messages, with colossus", "Win"),
+         ("4B  ·  untrained", "C2, map 100046", "Loss"), ("4B  ·  after SFT", "AWR, C2, map 100046", "Win")]
 x = 0.4
 for a, b, r in cards:
     rect(s, x, 4.3, 2.1, 1.1, WHITE, BORDER, MSO_SHAPE.ROUNDED_RECTANGLE)
@@ -147,6 +147,10 @@ for a, b, r in cards:
     text(s, x, 4.68, 2.1, 0.26, b, size=10, color=GRAY, align=PP_ALIGN.CENTER)
     text(s, x, 4.95, 2.1, 0.36, r, size=14, bold=True, color=(NAVY if r == "Win" else RED), align=PP_ALIGN.CENTER)
     x += 2.37
+DEMO_URL = "https://claude.ai/artifact/Wrt7Uetpi6dLHR3f2cEmk5"
+tb = text(s, 0.4, 5.75, 9.2, 0.35, [[("Replay page:  ", {"bold": True, "color": NAVY}), (DEMO_URL, {"color": "1F5FBF"})]],
+          size=13, align=PP_ALIGN.CENTER)
+tb.text_frame.paragraphs[0].runs[1].hyperlink.address = DEMO_URL
 
 # ---------------- slide 3: setup, results, in progress ----------------
 s = prs.slides.add_slide(BLANK)
@@ -183,26 +187,25 @@ text(s, 0.4, 6.05, 4.5, 0.6, "31B: 40 games per setting.  4B: same 64 maps for e
      "model won, AWR beat untrained 26 to 3 and DAgger beat it 18 to 5.", size=9, color=GRAY, italic=True)
 
 label(s, 5.15, 2.62, 4.45, "IN PROGRESS:  MULTI-AGENT RL FROM 53 % SFT")
-cards = [
-    ("MAPPO", "shared LoRA actor  ·  centralized critic on global state  ·  GAE  ·  PPO + KL to SFT",
-     DATA["mappo_line"], DATA["mappo_64"]),
-    ("GRPO self-play", "both teams share one policy  ·  group-normalized return + per-unit credit",
-     DATA["grpo_line"], DATA["grpo_64"]),
-]
-y = 3.0
-for h, how, line16, line64 in cards:
-    rect(s, 5.15, y, 4.45, 1.32, WHITE, BORDER, MSO_SHAPE.ROUNDED_RECTANGLE)
-    text(s, 5.25, y + 0.05, 4.25, 0.28, h, size=12, color=NAVY, bold=True)
-    text(s, 5.25, y + 0.32, 4.25, 0.42, how, size=10, color=GRAY)
-    text(s, 5.25, y + 0.74, 4.25, 0.55, [[("16-game checks:  ", {"bold": True, "color": NAVY}), (line16, {})],
-                                         [("64-game test:  ", {"bold": True, "color": NAVY}), (line64, {})]],
-         size=10, space_after=1)
-    y += 1.42
-rect(s, 5.15, 5.86, 4.45, 0.8, LIGHT, NAVY, MSO_SHAPE.ROUNDED_RECTANGLE)
-text(s, 5.25, 5.9, 4.25, 0.74, [[("Verified:  ", {"bold": True, "color": NAVY}),
-                                 ("sampled = recomputed log-probs, frozen SFT reference, per-unit credits sum to 0.", {})],
-                                [("So far:  ", {"bold": True, "color": NAVY}), (DATA["so_far"], {})]],
-     size=10, space_after=2)
+rect(s, 5.15, 3.0, 4.45, 1.62, WHITE, BORDER, MSO_SHAPE.ROUNDED_RECTANGLE)
+text(s, 5.25, 3.04, 4.25, 0.28, "Training reward  (never shown to the agents)", size=11, color=NAVY, bold=True)
+text(s, 5.25, 3.34, 4.25, 1.26, [
+    [("Team, every step:  ", {"bold": True, "color": NAVY}),
+     ("+ damage dealt − damage taken (health + shield), + enemy units killed − own units lost", {})],
+    [("End of game:  ", {"bold": True, "color": NAVY}), ("win +2,  loss −2,  draw 0", {})],
+    [("Each unit:  ", {"bold": True, "color": NAVY}),
+     ("credit for the damage it dealt, minus the damage it took; credits sum to zero over the team", {})]],
+    size=10, space_after=3)
+rect(s, 5.15, 4.75, 4.45, 1.12, WHITE, BORDER, MSO_SHAPE.ROUNDED_RECTANGLE)
+text(s, 5.25, 4.79, 4.25, 0.28, "Two methods, same starting model", size=11, color=NAVY, bold=True)
+text(s, 5.25, 5.07, 4.25, 0.78, [
+    [("MAPPO:  ", {"bold": True, "color": NAVY}), ("one shared policy for all 5 units, plus a critic that sees the whole map", {})],
+    [("GRPO self-play:  ", {"bold": True, "color": NAVY}), ("the model plays both sides; games on the same map are compared", {})]],
+    size=10, space_after=3)
+rect(s, 5.15, 6.0, 4.45, 0.62, LIGHT, NAVY, MSO_SHAPE.ROUNDED_RECTANGLE)
+text(s, 5.25, 6.04, 4.25, 0.56, [[("Status:  ", {"bold": True, "color": NAVY}),
+                                  ("training now; final test on 64 new maps, results pending.", {})]],
+     size=10, anchor=MSO_ANCHOR.MIDDLE)
 
 prs.save(OUT)
 print("saved", OUT)
