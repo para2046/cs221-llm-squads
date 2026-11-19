@@ -19,7 +19,16 @@ A planned third experiment gives one unit a secret incentive and measures collus
 - **Multi-agent RL from the 53% SFT checkpoint (in progress)**: `smac_llm/mappo.py`
   - `--algo mappo`: shared LoRA actor, centralized critic on the SMACv2 global state, per-agent GAE, token-level PPO with
     sampled old log-probs, KL to the frozen SFT adapter.
-  - `--algo grpo`: self-play GRPO (both teams share the policy, group = rollouts of the same scenario).
+  - `--algo grpo`: critic-free GRPO (group = G games on the same map; advantage = team return relative to the group
+    mean, plus each unit's own credit). All 5 units share one LoRA. The opponent depends on the env server:
+    - **vs the built-in AI (no self-play)**: point `--env-url` at a server started with `--opponent builtin`
+      (`scripts/grpo_ai_full.sh`).
+    - **mixed opponents**: add `--opp-env-url` (a server with `--opponent external`) and `--opp-frac 0.5`; half of each
+      round's groups are played against an API model (default Gemma 4 31B on OpenRouter, `--opp-llm`), the rest
+      against the built-in AI. The API model's moves are never training data; a failed API call stops the run.
+    - self-play: `--env-url` on a server with `--opponent external` and no `--opp-env-url` (both teams = the policy).
+  - Same-map evaluation of API models: `smac_llm/play.py --scenario-start 200000` plays the fixed maps
+    (`scripts/fixed40_api.sh`); `scripts/same_maps_table.py` builds the comparison on maps 200000–200063.
   - Reward: `ShapedReward2` in `smac_llm/game.py` (team reward + per-unit credit that sums to 0; unit test in `tests/`).
   - Behaviour analysis: `scripts/behavior_stats.py`.
 - **Prompts and channel examples**: `docs/prompts.md`. **Protocol**: `docs/unified_protocol.md`. **Related papers**: `paper/README.md`.
