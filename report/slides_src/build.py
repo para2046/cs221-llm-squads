@@ -145,7 +145,7 @@ text(s, 0.4, 1.9, 9.2, 1.5, "DEMO", size=88, color=NAVY, bold=True, align=PP_ALI
 text(s, 0.4, 3.4, 9.2, 0.4, "Interactive replays of four games against the SC2 built-in AI",
      size=14, color=GRAY, align=PP_ALIGN.CENTER)
 cards = [("31B  ·  C0", "no channel", "Loss"), ("31B  ·  C2", "messages, with colossus", "Win"),
-         ("4B  ·  untrained", "C2, map 100046", "Loss"), ("4B  ·  after SFT", "AWR, C2, map 100046", "Win")]
+         ("4B  ·  untrained", "C2, map 100046", "Loss"), ("4B  ·  after SFT", "SFT on 31B games, C2, map 100046", "Win")]
 x = 0.4
 for a, b, r in cards:
     rect(s, x, 4.3, 2.1, 1.1, WHITE, BORDER, MSO_SHAPE.ROUNDED_RECTANGLE)
@@ -182,7 +182,7 @@ APIC = "7A8699"
 bars3 = [("31B · C0 no channel *", 25, NAVY), ("31B · C1 + states *", 50, NAVY), ("31B · C2 + messages", T31["win"], NAVY),
          ("GPT-5.6 Luna (eval only)", LU["win"], APIC), ("Gemini 3.5 Flash-Lite (eval only)", GE["win"], APIC),
          ("4B · untrained *", 17.2, RED), ("4B · no history *", 3.1, RED),
-         ("4B · AWR (SFT)", SFT["win"], RED), ("4B · MAPPO (RL, best so far)", MP["win"], RED)]
+         ("4B · SFT on 31B games", SFT["win"], RED), ("4B · MAPPO (RL, best so far)", MP["win"], RED)]
 cats = [c for c, _, _ in bars3]; vals = [v for _, v, _ in bars3]
 cd = CategoryChartData(); cd.categories = list(reversed(cats)); cd.add_series("Win rate", list(reversed(vals)))
 gf = s.shapes.add_chart(XL_CHART_TYPE.BAR_CLUSTERED, Inches(0.4), Inches(2.95), Inches(4.5), Inches(3.1), cd)
