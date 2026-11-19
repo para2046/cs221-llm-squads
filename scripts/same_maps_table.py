@@ -15,13 +15,29 @@ def f64(run):
 
 
 def api(*pats):
-    W = {}
+    """Wins per scenario from play.py logs. A game with any API failure (e.g. 402 out of credit) is dropped;
+    a clean single-game replay (runs/<pat>/s<scenario>.jsonl) replaces it."""
+    W, clean = {}, {}
     for pat in pats:
         for f in glob.glob(f"runs/{pat}/w*.jsonl"):
+            bad = 0
             for l in open(f):
                 d = json.loads(l)
-                if d.get("summary") and d.get("scenario") is not None:
+                if not d.get("summary"):
+                    bad += sum(x["reply"].startswith("ERROR") for x in d["team_a"])
+                    continue
+                if d.get("scenario") is not None and not bad:
                     W[d["scenario"]] = bool(d["won"])
+                bad = 0
+        for f in glob.glob(f"runs/{pat}/s*.jsonl"):
+            bad = 0
+            for l in open(f):
+                d = json.loads(l)
+                if not d.get("summary"):
+                    bad += sum(x["reply"].startswith("ERROR") for x in d["team_a"])
+                elif not bad:
+                    clean[d["scenario"]] = bool(d["won"])
+    W.update(clean)
     return W
 
 
@@ -34,7 +50,7 @@ for l in open("runs/f64_sft/eval_episodes.jsonl"):
 models = [("Gemma 4 31B (teacher)", api("evalonly_31b_fixed40", "evalonly_31b_fixed64rest")),
           ("GPT-5.6 Luna", api("evalonly_luna_fixed40", "evalonly_luna_fixed64rest")),
           ("Gemini 3.5 Flash-Lite", api("evalonly_gflashlite_test", "evalonly_gflashlite_fixed40", "evalonly_gflashlite_fixed40b",
-                                        "evalonly_gflashlite_fixed64rest")),
+                                        "evalonly_gflashlite_fixed64rest", "evalonly_gflashlite_fix8")),
           ("4B MAPPO (best RL so far)", f64("f64_mappo")),
           ("4B SFT (AWR from 31B)", f64("f64_sft"))]
 rows = []
