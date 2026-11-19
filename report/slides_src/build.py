@@ -181,7 +181,7 @@ label(s, 0.4, 2.62, 4.5, "WIN RATE VS BUILT-IN AI  (%)")
 APIC = "7A8699"
 bars3 = [("31B · C0 no channel *", 25, NAVY), ("31B · C1 + states *", 50, NAVY), ("31B · C2 + messages", T31["win"], NAVY),
          ("GPT-5.6 Luna (eval only)", LU["win"], APIC), ("Gemini 3.5 Flash-Lite (eval only)", GE["win"], APIC),
-         ("4B · untrained *", 17.2, RED), ("4B · no history *", 3.1, RED), ("4B · DAgger (SFT) *", 37.5, RED),
+         ("4B · untrained *", 17.2, RED), ("4B · no history *", 3.1, RED),
          ("4B · AWR (SFT)", SFT["win"], RED), ("4B · MAPPO (RL, best so far)", MP["win"], RED)]
 cats = [c for c, _, _ in bars3]; vals = [v for _, v, _ in bars3]
 cd = CategoryChartData(); cd.categories = list(reversed(cats)); cd.add_series("Win rate", list(reversed(vals)))
@@ -198,7 +198,7 @@ va.visible = False
 ca = ch.category_axis; ca.tick_labels.font.size = Pt(9); ca.tick_labels.font.name = FONT
 ca.tick_labels.font.color.rgb = rgb(INK); ca.format.line.color.rgb = rgb(BORDER)
 text(s, 0.4, 6.07, 4.5, 0.8, f"Unmarked bars: the same 64 new maps (seeds never used in training). * Earlier tests: 31B C0/C1 on "
-     f"40 random games; 4B untrained / no history / DAgger on 64 development maps. On maps only one won: 31B beat SFT "
+     f"40 random games; 4B untrained / no history on 64 development maps. On maps only one won: 31B beat SFT "
      f"{T31['only_this']} to {T31['only_sft']}; MAPPO vs SFT {MP['only_this']} to {MP['only_sft']}.", size=8, color=GRAY, italic=True)
 
 label(s, 5.15, 2.62, 4.45, "IN PROGRESS:  MULTI-AGENT RL FROM 53 % SFT")
