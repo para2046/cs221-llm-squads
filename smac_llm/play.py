@@ -35,6 +35,8 @@ def main():
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--out", required=True)
     p.add_argument("--replay-dir", default=None)
+    p.add_argument("--scenario-start", type=int, default=None,
+                   help="play fixed scenarios start, start+1, ... (same maps as mappo.py --eval-scenarios)")
     a = p.parse_args()
 
     random.seed(a.seed)
@@ -50,7 +52,8 @@ def main():
     with open(a.out, "a") as log:
         for ep in range(a.episodes):
             t0 = time.time()
-            st = g.reset()
+            scen = None if a.scenario_start is None else a.scenario_start + ep
+            st = g.reset(scen)
             n = bad = n_b = bad_b = 0
             ret = 0.0
             while not st["done"]:
@@ -76,7 +79,7 @@ def main():
             info = st["info"]
             won = bool(info.get("battle_won"))
             winner = info.get("winner") or ("A" if won else ("B" if info.get("dead_allies") == a.n_units else "draw"))
-            s = {"episode": ep, "summary": True, "won": won, "winner": winner, "return": round(ret, 3),
+            s = {"episode": ep, "scenario": scen, "summary": True, "won": won, "winner": winner, "return": round(ret, 3),
                  "return_b": info.get("return_b"), "steps": st["step"], "dead_allies": info.get("dead_allies"),
                  "dead_enemies": info.get("dead_enemies"), "invalid_rate": round(bad / max(n, 1), 3),
                  "invalid_rate_b": round(bad_b / max(n_b, 1), 3) if n_b else None,

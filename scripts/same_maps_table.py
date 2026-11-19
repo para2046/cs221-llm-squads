@@ -1,0 +1,51 @@
+"""Win rates of every model on the same fixed maps 200000-200063 (grouped vs split start), for slide 4.
+usage: python scripts/same_maps_table.py > report/slides_src/same_maps.json"""
+import json, glob, re
+R = re.compile(r"a(\d), a (\w+) at \(([-\d.]+), ([-\d.]+)\)")
+MAPS = range(200000, 200064)
+
+
+def f64(run):
+    W = {}
+    for l in open(f"runs/{run}/eval_episodes.jsonl"):
+        e = json.loads(l)
+        if e.get("team", "A") == "A":
+            W[e["scenario"]] = bool(e["info"].get("battle_won"))
+    return W
+
+
+def api(*pats):
+    W = {}
+    for pat in pats:
+        for f in glob.glob(f"runs/{pat}/w*.jsonl"):
+            for l in open(f):
+                d = json.loads(l)
+                if d.get("summary") and d.get("scenario") is not None:
+                    W[d["scenario"]] = bool(d["won"])
+    return W
+
+
+grouped = set()   # start type is fixed by the seed: our 5 units around the map centre
+for l in open("runs/f64_sft/eval_episodes.jsonl"):
+    e = json.loads(l)
+    pos = [R.search(d["prompt"]) for d in e["decisions"] if int(d["t"]) == 0]
+    if all(abs(float(m[3]) - 16) < 2.5 and abs(float(m[4]) - 16) < 2.5 for m in pos):
+        grouped.add(e["scenario"])
+models = [("Gemma 4 31B (teacher)", api("evalonly_31b_fixed40", "evalonly_31b_fixed64rest")),
+          ("GPT-5.6 Luna", api("evalonly_luna_fixed40", "evalonly_luna_fixed64rest")),
+          ("Gemini 3.5 Flash-Lite", api("evalonly_gflashlite_test", "evalonly_gflashlite_fixed40", "evalonly_gflashlite_fixed40b",
+                                        "evalonly_gflashlite_fixed64rest")),
+          ("4B MAPPO (best RL so far)", f64("f64_mappo")),
+          ("4B SFT (AWR from 31B)", f64("f64_sft"))]
+rows = []
+for name, W in models:
+    ks = [k for k in MAPS if k in W]
+    g = [k for k in ks if k in grouped]; s = [k for k in ks if k not in grouped]
+    rows.append(dict(model=name, n=len(ks), wins=sum(W[k] for k in ks), win=round(100 * sum(W[k] for k in ks) / len(ks), 1),
+                     n_grouped=len(g), grouped=round(100 * sum(W[k] for k in g) / max(len(g), 1), 1),
+                     n_split=len(s), split=round(100 * sum(W[k] for k in s) / max(len(s), 1), 1)))
+ref = dict(models)["4B SFT (AWR from 31B)"]
+for r, (name, W) in zip(rows, models):
+    ks = [k for k in MAPS if k in W and k in ref]
+    r["only_this"] = sum(W[k] and not ref[k] for k in ks); r["only_sft"] = sum(ref[k] and not W[k] for k in ks)
+print(json.dumps(dict(n_grouped=len(grouped), n_split=64 - len(grouped), rows=rows), indent=1))

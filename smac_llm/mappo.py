@@ -43,6 +43,23 @@ from .train import EnvClient, GEN, SYSTEM, chat_prefix, load_model
 
 # ----------------------------------------------------------------------------- generation
 @torch.no_grad()
+class SysPrompt(str):
+    """A prompt that carries its own system prompt (games vs an API model use the model-vs-model system
+    prompt, without the built-in-AI behaviour section). Plain str prompts use the server's SYSTEM."""
+    def __new__(cls, text, system):
+        o = super().__new__(cls, text)
+        o.system = system
+        return o
+
+
+def _prefix(tok, p):
+    sysp = getattr(p, "system", None)
+    if sysp is None:
+        return chat_prefix(tok, p)
+    msgs = [{"role": "system", "content": sysp}, {"role": "user", "content": str(p)}]
+    return tok.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)
+
+
 def generate_ids(model, tok, prompts, temperature, max_new_tokens, eval_sampling=False):
     """Sample replies; returns [(completion_ids, per_token_logprobs_at_sampling, text)].
     Training: pure ancestral sampling from pi (top_k=0, top_p=1; Gemma's generation_config defaults
@@ -55,7 +72,7 @@ def generate_ids(model, tok, prompts, temperature, max_new_tokens, eval_sampling
         stop |= set(gc.eos_token_id if isinstance(gc.eos_token_id, list) else [gc.eos_token_id])
     while i < len(prompts):
         b = min(len(prompts) - i, GEN["bs"])
-        chunk = [chat_prefix(tok, p) for p in prompts[i:i + b]]
+        chunk = [_prefix(tok, p) for p in prompts[i:i + b]]
         try:
             enc = tok(chunk, return_tensors="pt", padding=True, add_special_tokens=False).to("cuda")
             g = model.generate(**enc, max_new_tokens=max_new_tokens, do_sample=True,
@@ -91,7 +108,7 @@ def token_logprobs(model, tok, prompts, comp_ids, max_len=4096):
     """Per-token log-probs of given completion ids: (B, K) lp and mask (right-aligned, left padding)."""
     ids, ncomp = [], []
     for p, c in zip(prompts, comp_ids):
-        pi = tok(chat_prefix(tok, p), add_special_tokens=False)["input_ids"]
+        pi = tok(_prefix(tok, p), add_special_tokens=False)["input_ids"]
         x = (pi + list(c))[-max_len:]
         ids.append(x)
         ncomp.append(len(c))
@@ -109,12 +126,46 @@ def token_logprobs(model, tok, prompts, comp_ids, max_len=4096):
 
 
 # ----------------------------------------------------------------------------- rollout
+class APIOpponent:
+    """Team B played by an API LLM (e.g. Gemma 4 31B on OpenRouter) through a server running --opponent external.
+    Its decisions are never training data. Any failed call (e.g. 402 out of credit) aborts the rollout, so a
+    game with broken opponent moves is never trained on."""
+    def __init__(self, spec, api_key, temperature=0.7, max_tokens=1536, workers=40):
+        from openai import OpenAI
+        base_url, self.model = spec.rsplit(":", 1)
+        self.client = OpenAI(base_url=base_url, api_key=api_key, timeout=60, max_retries=0)
+        self.temperature, self.max_tokens = temperature, max_tokens
+        self.pool = ThreadPoolExecutor(workers)
+        self.calls = self.errors = 0
+        self.system = None   # set from the external server's /info (model-vs-model system prompt)
+
+    def _one(self, prompt):
+        err = None
+        for attempt in range(8):
+            try:
+                r = self.client.chat.completions.create(
+                    model=self.model, temperature=self.temperature, max_tokens=self.max_tokens,
+                    messages=[{"role": "system", "content": self.system}, {"role": "user", "content": prompt}])
+                return r.choices[0].message.content or ""
+            except Exception as e:
+                err = e
+                if "402" in str(e) or "401" in str(e):
+                    break
+                time.sleep(min(30, 2 + 3 * attempt))
+        raise RuntimeError(f"opponent API failed: {type(err).__name__}: {err}")
+
+    def act(self, prompts):
+        self.calls += len(prompts)
+        return list(self.pool.map(self._one, prompts))
+
+
 def _new_ep(scen, team):
     return {"scenario": scen, "team": team, "states": [], "rewards": [], "own": [], "smac": [],
             "decisions": [], "info": {}}
 
 
-def rollout(client, model, tok, n_episodes, temperature, max_new_tokens, scenarios=None, eval_sampling=False):
+def rollout(client, model, tok, n_episodes, temperature, max_new_tokens, scenarios=None, eval_sampling=False,
+            opponent=None):
     """Plays n episodes. Against the built-in AI returns one record per game (team A). In self-play
     (server --opponent external) the same current model also plays team B, and a second record per game
     (team "B", with B's own rewards/credit/validity) is returned; both teams' decisions are training data."""
@@ -131,16 +182,26 @@ def rollout(client, model, tok, n_episodes, temperature, max_new_tokens, scenari
         eps = {("A", i): _new_ep(scen[i], "A") for i in range(k)}
         if selfplay:
             eps.update({("B", i): _new_ep(scen[i], "B") for i in range(k)})
+        for i in range(k):
+            eps[("A", i)]["opponent"] = "api" if (selfplay and opponent is not None) else ("self" if selfplay else "builtin")
         live = set(range(k))
         while live:
-            batch = [("A", i, a, p) for i in sorted(live) for a, p in states[i]["prompts"].items()]
-            if selfplay:
+            batch = [("A", i, a, SysPrompt(p, opponent.system) if opponent is not None else p)
+                     for i in sorted(live) for a, p in states[i]["prompts"].items()]
+            per_env = {}
+            if selfplay and opponent is not None:   # team B = API model, run while the GPU generates for A
+                bb = [(i, a, p) for i in sorted(live) for a, p in states[i]["prompts_b"].items()]
+                fut = opponent.pool.submit(opponent.act, [p for *_, p in bb])
+            elif selfplay:
                 batch += [("B", i, a, p) for i in sorted(live) for a, p in states[i]["prompts_b"].items()]
             gen = generate_ids(model, tok, [p for *_, p in batch], temperature, max_new_tokens, eval_sampling)
-            per_env = {}
+            if selfplay and opponent is not None:
+                for (i, a, p), text in zip(bb, fut.result()):
+                    per_env.setdefault(("B", i), {})[a] = text
             for (tm, i, a, p), (ids, lp, text) in zip(batch, gen):
                 per_env.setdefault((tm, i), {})[a] = text
                 e = eps[(tm, i)]
+                assert not (tm == "B" and opponent is not None)
                 e["decisions"].append({"t": len(e["rewards"]), "agent": a, "prompt": p, "ids": ids, "lp": lp,
                                        "reply": text})
             for i in sorted(live):
@@ -173,7 +234,8 @@ def rollout(client, model, tok, n_episodes, temperature, max_new_tokens, scenari
                                                  "dead_allies": inf.get("dead_enemies"),
                                                  "dead_enemies": inf.get("dead_allies")}
                     live.discard(i)
-        episodes += [eps[("A", i)] for i in range(k)] + ([eps[("B", i)] for i in range(k)] if selfplay else [])
+        episodes += [eps[("A", i)] for i in range(k)] + \
+            ([eps[("B", i)] for i in range(k)] if selfplay and opponent is None else [])
         done_n += k
     pool.shutdown()
     return episodes
@@ -378,6 +440,11 @@ def main():
                    help="mappo: centralised critic + GAE; grpo: critic-free group baseline (G rollouts per scenario)")
     p.add_argument("--group-size", type=int, default=4, help="grpo: rollouts per scenario")
     p.add_argument("--adv-sd-floor", type=float, default=0.5, help="grpo: lower bound on the group std")
+    p.add_argument("--opp-env-url", default=None, help="mixed opponents: a server with --opponent external whose "
+                   "team B is played by --opp-llm; --opp-frac of each round's groups are played there")
+    p.add_argument("--opp-llm", default="https://openrouter.ai/api/v1:google/gemma-4-31b-it")
+    p.add_argument("--opp-key-env", default="OPENROUTER_API_KEY")
+    p.add_argument("--opp-frac", type=float, default=0.5)
     p.add_argument("--eval-env-url", default=None, help="built-in-AI server for evaluation (required in self-play)")
     p.add_argument("--ref-adapter", default=None, help="frozen KL reference (default: --adapter). Set to the SFT "
                    "adapter when resuming from an RL checkpoint")
@@ -411,6 +478,18 @@ def main():
     selfplay = "prompts_b" in st0
     eval_client = EnvClient(args.eval_env_url, open(args.env_token_file).read().strip()) if args.eval_env_url else client
     assert eval_client.post("/info", {}).get("opponent") == "builtin", "evaluation must be against the built-in AI"
+    opp_client = opponent = None
+    if args.opp_env_url:
+        assert not selfplay, "--env-url must be the built-in-AI server when --opp-env-url is used"
+        opp_client = EnvClient(args.opp_env_url, open(args.env_token_file).read().strip())
+        oinfo = opp_client.post("/info", {})
+        assert oinfo.get("opponent") == "external", "--opp-env-url needs --opponent external"
+        for k_ in ("channel", "brief", "reward", "map", "difficulty"):
+            assert oinfo.get(k_) == info.get(k_), f"servers differ in {k_}"
+        opponent = APIOpponent(args.opp_llm, os.environ[args.opp_key_env])
+        opponent.system = oinfo["system"]
+        assert "ENEMY BEHAVIOUR" not in opponent.system
+        print(f"mixed opponents: {args.opp_frac:.0%} of groups vs {args.opp_llm}", flush=True)
     if args.algo == "mappo":
         assert st0.get("state"), "env server must run with --global-state"
     sdim, n_agents = len(st0.get("state") or [0]), 5
@@ -432,11 +511,28 @@ def main():
         if args.algo == "grpo":   # G rollouts of each random scenario
             ids = [random.randrange(1 << 30) for _ in range(max(1, args.episodes_per_iter // args.group_size))]
             scen = [x for x in ids for _ in range(args.group_size)]
-        eps = rollout(client, model, tok, len(scen) if scen else args.episodes_per_iter, args.temperature,
-                      args.max_new_tokens, scen)
+        if opp_client is not None:   # mixed: part of the groups vs the API model, the rest vs the built-in AI
+            assert scen, "mixed opponents need --algo grpo"
+            n_api = round(len(scen) // args.group_size * args.opp_frac) * args.group_size
+            eps = rollout(client, model, tok, len(scen) - n_api, args.temperature, args.max_new_tokens,
+                          scen[n_api:]) if len(scen) > n_api else []
+            if n_api:
+                eps += rollout(opp_client, model, tok, n_api, args.temperature, args.max_new_tokens, scen[:n_api],
+                               opponent=opponent)
+        else:
+            eps = rollout(client, model, tok, len(scen) if scen else args.episodes_per_iter, args.temperature,
+                          args.max_new_tokens, scen)
         eA = [e for e in eps if e["team"] == "A"]
         rec = {"mode": "train", "algo": args.algo, "selfplay": selfplay, "iter": it, **ep_stats(eA),
                "rollout_s": round(time.time() - t0, 1)}
+        if opp_client is not None:
+            for o in ("builtin", "api"):
+                sub = [e for e in eA if e.get("opponent") == o]
+                if sub:
+                    rec[f"win_rate_{o}"] = round(sum(bool(e["info"].get("battle_won") or e["info"].get("winner") == "A")
+                                                     for e in sub) / len(sub), 3)
+                    rec[f"n_{o}"] = len(sub)
+            rec["opp_calls"] = opponent.calls
         if selfplay:
             rec.update(b_win_rate=round(sum(e["info"].get("winner") == "B" for e in eA) / len(eA), 3),
                        draw_rate=round(sum(e["info"].get("winner") == "draw" for e in eA) / len(eA), 3),

@@ -139,7 +139,7 @@ button.ctl:hover { border-color: var(--muted); }
         <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
           <div class="speed" id="speed"></div>
           <span class="clock" id="clock"></span>
-          <label class="toggle"><input type="checkbox" id="bub"> speech bubbles</label>
+          <label class="toggle"><input type="checkbox" id="bub" checked> team messages</label>
           <label class="toggle"><input type="checkbox" id="lbl" checked> unit labels</label>
         </div>
       </div>
@@ -149,7 +149,8 @@ button.ctl:hover { border-color: var(--muted); }
         <span style="--c: var(--shield)">Shield</span>
         <span style="--c: var(--hp)">Health</span>
         <span style="--c: var(--bad)">Illegal order</span>
-        <span style="--c: rgba(242,162,58,0.38)">Faded label = enemy not seen by any of our units this step</span>
+        <span style="--c: rgba(242,162,58,0.38)">Faded ring = enemy not seen by any of our units this step</span>
+        <span style="--c: var(--ink)">Bubble = message one of our units sent to its team this step (C2 games)</span>
         <span style="--c: transparent; color: var(--muted)">In the video itself our units are red, the enemy blue</span>
       </div>
     </div>
@@ -354,9 +355,11 @@ function draw(now) {
     if (showLbl || isSel) { // name tag + thin shield/hp bars
       const txt = lab(side, id) + (hid ? '?' : ''), fs = 19;
       ctx.font = `700 ${fs}px "Chakra Petch", sans-serif`; const w = ctx.measureText(txt).width + 12, h = fs + 6;
-      ctx.fillStyle = 'rgba(7,11,17,0.78)'; ctx.strokeStyle = col; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.roundRect(x - w / 2, ly - h, w, h, 5); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = col; ctx.textAlign = 'center'; ctx.fillText(txt, x, ly - 6);
+      if (side === 'al' || isSel) { // enemies: ring + bars only, no number tag (click one to see it)
+        ctx.fillStyle = 'rgba(7,11,17,0.78)'; ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.roundRect(x - w / 2, ly - h, w, h, 5); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = col; ctx.textAlign = 'center'; ctx.fillText(txt, x, ly - 6);
+      }
       const bw = Math.max(w, 34), sm = u0.sh_max || 0, hm = u0.hp_max || 1;
       ctx.fillStyle = 'rgba(5,8,12,0.85)'; ctx.fillRect(x - bw / 2 - 1, ly + 2, bw + 2, 9);
       if (sm) { ctx.fillStyle = C.shield; ctx.fillRect(x - bw / 2, ly + 3, bw * v[3] / sm, 3); }

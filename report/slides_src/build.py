@@ -5,6 +5,8 @@ from pptx.util import Inches, Pt, Emu
 from pptx.dml.color import RGBColor
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
+import json
+from pathlib import Path
 from pptx.chart.data import CategoryChartData
 from pptx.enum.chart import XL_CHART_TYPE, XL_LABEL_POSITION
 
@@ -82,7 +84,7 @@ def frame(s, n, section, title, subtitle=None):
     if subtitle:
         text(s, 0.4, 1.33, 9.2, 0.34, subtitle, size=13, color=GRAY, name="Subtitle")
     text(s, 0.4, 6.95, 6.0, 0.25, FOOTER, size=9, color=GRAY)
-    text(s, 7.5, 6.95, 2.1, 0.25, f"{n} / 3", size=9, color=GRAY, align=PP_ALIGN.RIGHT)
+    text(s, 7.5, 6.95, 2.1, 0.25, f"{n} / 4", size=9, color=GRAY, align=PP_ALIGN.RIGHT)
 
 
 def label(s, x, y, w, t):
@@ -151,13 +153,17 @@ DEMO_URL = "https://claude.ai/artifact/Wrt7Uetpi6dLHR3f2cEmk5"
 tb = text(s, 0.4, 5.75, 9.2, 0.35, [[("Replay page:  ", {"bold": True, "color": NAVY}), (DEMO_URL, {"color": "1F5FBF"})]],
           size=13, align=PP_ALIGN.CENTER)
 tb.text_frame.paragraphs[0].runs[1].hyperlink.address = DEMO_URL
+VIDEO_URL = "https://claude.ai/artifact/KBMsSf2gCHgWGRyRqchZzW"
+tb = text(s, 0.4, 6.12, 9.2, 0.35, [[("Real SC2 video with team messages:  ", {"bold": True, "color": NAVY}),
+                                     (VIDEO_URL, {"color": "1F5FBF"})]], size=13, align=PP_ALIGN.CENTER)
+tb.text_frame.paragraphs[0].runs[1].hyperlink.address = VIDEO_URL
 
 # ---------------- slide 3: setup, results, in progress ----------------
 s = prs.slides.add_slide(BLANK)
 frame(s, 3, "3.  Setup & Results", "Setup, Results & Experiments in Progress",
       "Learning from 31B lifts 4B from 17 % to 53 %; whether multi-agent RL adds more is being tested now.")
 stats = [("64", "fixed scenarios, paired by seed (McNemar)"), ("Level 7", "SC2 built-in AI opponent"),
-         ("60 %", "31B teacher with messages (C2)"), ("53.1 %", "best 4B: SFT on 31B games")]
+         ("60 %", "31B with messages, 40 random games"), ("53.1 %", "best 4B: SFT on 31B games")]
 x = 0.4
 for big, small in stats:
     rect(s, x, 1.8, 2.1, 0.66, WHITE, BORDER, MSO_SHAPE.ROUNDED_RECTANGLE)
@@ -206,6 +212,45 @@ rect(s, 5.15, 6.0, 4.45, 0.62, LIGHT, NAVY, MSO_SHAPE.ROUNDED_RECTANGLE)
 text(s, 5.25, 6.04, 4.25, 0.56, [[("Status:  ", {"bold": True, "color": NAVY}),
                                   ("training now; final test on 64 new maps, results pending.", {})]],
      size=10, anchor=MSO_ANCHOR.MIDDLE)
+
+# ---------------- slide 4: every model on the same 64 new maps ----------------
+SM = json.load(open(Path(__file__).with_name("same_maps.json")))
+s = prs.slides.add_slide(BLANK)
+frame(s, 4, "4.  Same-map comparison", "Same 64 New Maps: How Close Is the 4B?",
+      "Every model plays the same 64 maps (seeds never used in training) against built-in AI level 7.")
+label(s, 0.4, 1.8, 5.3, "WIN RATE (%)  BY START TYPE")
+rows = SM["rows"]
+cats = [f"{r['model']}  ·  {r['win']:.0f} %" + ("" if r["n"] == 64 else f" ({r['n']}/64 maps)") for r in rows]
+cd = CategoryChartData(); cd.categories = list(reversed(cats))
+cd.add_series(f"Split start ({SM['n_split']} maps)", [r["split"] for r in reversed(rows)])
+cd.add_series(f"Grouped start ({SM['n_grouped']} maps)", [r["grouped"] for r in reversed(rows)])
+gf = s.shapes.add_chart(XL_CHART_TYPE.BAR_CLUSTERED, Inches(0.4), Inches(2.15), Inches(5.4), Inches(4.2), cd)
+ch = gf.chart; ch.has_title = False; ch.has_legend = True
+from pptx.enum.chart import XL_LEGEND_POSITION
+ch.legend.position = XL_LEGEND_POSITION.BOTTOM; ch.legend.include_in_layout = False
+ch.legend.font.size = Pt(10); ch.legend.font.name = FONT
+plot = ch.plots[0]; plot.gap_width = 55; plot.overlap = -5; plot.has_data_labels = True
+dl = plot.data_labels; dl.number_format = '0'; dl.number_format_is_linked = False
+dl.position = XL_LABEL_POSITION.OUTSIDE_END; dl.font.size = Pt(9); dl.font.name = FONT; dl.font.color.rgb = rgb(INK)
+for ser, col in zip(plot.series, (RED, NAVY)):
+    ser.format.fill.solid(); ser.format.fill.fore_color.rgb = rgb(col)
+va = ch.value_axis; va.maximum_scale = 100; va.minimum_scale = 0; va.has_major_gridlines = False; va.visible = False
+ca = ch.category_axis; ca.tick_labels.font.size = Pt(10); ca.tick_labels.font.name = FONT
+ca.tick_labels.font.color.rgb = rgb(INK); ca.format.line.color.rgb = rgb(BORDER)
+R = {r["model"]: r for r in rows}
+t31, mp, sft = R["Gemma 4 31B (teacher)"], R["4B MAPPO (best RL so far)"], R["4B SFT (AWR from 31B)"]
+label(s, 6.05, 1.8, 3.55, "WHAT THE SAME MAPS SHOW")
+pts = [
+    ("Grouped starts are easy for everyone: ", f"{min(r['grouped'] for r in rows):.0f}–{max(r['grouped'] for r in rows):.0f} % win."),
+    ("Split starts separate the models: ", f"31B wins {t31['split']:.0f} %, 4B SFT {sft['split']:.0f} %."),
+    ("31B is still clearly ahead of 4B: ", f"maps only one won: 31B {t31['only_this']}, SFT {t31['only_sft']}."),
+    ("Best RL so far (MAPPO) vs SFT: ", f"{mp['win']:.0f} % vs {sft['win']:.0f} %, maps only one won {mp['only_this']} to {mp['only_sft']}: "
+                                         "a lead, not yet confirmed."),
+    ("General-purpose API models are not better here: ", "GPT-5.6 Luna and Gemini Flash-Lite are at or below 31B.")]
+rect(s, 6.05, 2.15, 3.55, 4.2, WHITE, BORDER, MSO_SHAPE.ROUNDED_RECTANGLE)
+text(s, 6.15, 2.22, 3.35, 4.05, [[(a, {"bold": True, "color": NAVY}), (b, {})] for a, b in pts], size=10, space_after=6)
+text(s, 0.4, 6.42, 9.2, 0.45, "Grouped = our 5 units start together in the centre and are surrounded; split = units start "
+     "scattered. API models: evaluation only, never used as training data.", size=9, color=GRAY, italic=True)
 
 prs.save(OUT)
 print("saved", OUT)
