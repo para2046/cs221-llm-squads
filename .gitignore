@@ -1,0 +1,22 @@
+# allowlist: only code, docs, tests, report and the paper list are published
+/*
+!/.gitignore
+!/README.md
+!/smac_llm/
+!/scripts/
+!/tests/
+!/docs/
+!/report/
+!/paper/
+**/__pycache__/
+*.pyc
+.env
+data/
+paper/*.pdf
+report/*.aux
+report/*.log
+report/*.bbl
+report/*.blg
+report/*.out
+report/tpl/
+report/*backup*

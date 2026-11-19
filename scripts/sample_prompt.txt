@@ -1,0 +1,9 @@
+Step 3. You are agent a0, a colossus at (7.6, 20.4), hp 200/200, shield 150/150, weapon cooldown 0, shoot range 7, sight range 10.
+Visible teammates:
+  a1 stalker at (12.8, 23.8), dist 6.2, hp 80/80, shield 80/80
+  a2 zealot at (2.3, 13.3), dist 8.8, hp 100/100, shield 50/50
+  a3 zealot at (2.3, 17.8), dist 5.9, hp 100/100, shield 50/50
+  a4 zealot at (15.7, 25.4), dist 9.5, hp 100/100, shield 37/50
+Visible enemies: none
+Units alive: your team 5, enemy 5.
+Legal actions: stop, move_north, move_south, move_east, move_west
