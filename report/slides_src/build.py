@@ -164,7 +164,7 @@ tb.text_frame.paragraphs[0].runs[1].hyperlink.address = VIDEO_URL
 
 # ---------------- slide 3: setup, results, in progress ----------------
 T31, LU, GE = SMR["Gemma 4 31B (teacher)"], SMR["GPT-5.6 Luna"], SMR["Gemini 3.5 Flash-Lite"]
-MP, SFT = SMR["4B MAPPO (best RL so far)"], SMR["4B SFT (AWR from 31B)"]
+MP, SFT = SMR["4B MAPPO (best RL so far)"], SMR["4B SFT on 31B games"]
 s = prs.slides.add_slide(BLANK)
 frame(s, 3, "3.  Setup & Results", "Setup, Results & Experiments in Progress",
       f"Learning from 31B lifts 4B from 17 % to 53 %; on the same new maps the 31B teacher still leads ({T31['win']:.0f} %).")
@@ -249,7 +249,7 @@ if SLIDE4:
     ca = ch.category_axis; ca.tick_labels.font.size = Pt(10); ca.tick_labels.font.name = FONT
     ca.tick_labels.font.color.rgb = rgb(INK); ca.format.line.color.rgb = rgb(BORDER)
     R = {r["model"]: r for r in rows}
-    t31, mp, sft = R["Gemma 4 31B (teacher)"], R["4B MAPPO (best RL so far)"], R["4B SFT (AWR from 31B)"]
+    t31, mp, sft = R["Gemma 4 31B (teacher)"], R["4B MAPPO (best RL so far)"], R["4B SFT on 31B games"]
     label(s, 6.05, 1.8, 3.55, "WHAT THE SAME MAPS SHOW")
     pts = [
         ("Grouped starts are easy for everyone: ", f"{min(r['grouped'] for r in rows):.0f}–{max(r['grouped'] for r in rows):.0f} % win."),

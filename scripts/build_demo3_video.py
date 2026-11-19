@@ -72,8 +72,8 @@ def main():
          find_ep("runs/demo_untrained/episodes.jsonl", SCEN), "runs/demo_untrained/replay_units_scen100046.json",
          "runs/demo_untrained/replays/env2/scen100046_lost_s32_103743.SC2Replay",
          f"BEFORE training — scenario {SCEN}: same unit mix and same start positions for our squad as the next tab "
-         "(after AWR training); the enemy start positions differ."),
-        ("d", "Gemma 4 E4B after training (AWR) · C2 · Win", "Gemma 4 E4B (ours)", True,
+         "(after SFT on 31B games); the enemy start positions differ."),
+        ("d", "Gemma 4 E4B after SFT on 31B games · C2 · Win", "Gemma 4 E4B (ours)", True,
          find_ep("runs/demo_awr/episodes.jsonl", SCEN), "runs/demo_awr/replay_units_scen100046.json",
          "runs/demo_awr/replays/env2/scen100046_won_s45_104443.SC2Replay",
          f"AFTER training — the same scenario {SCEN} as the previous tab (untrained model): same unit mix and our "

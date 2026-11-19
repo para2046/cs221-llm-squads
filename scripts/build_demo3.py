@@ -198,9 +198,9 @@ def main():
     for key, path, dump, rep, lab, note in (
             ("untrained", "runs/demo_untrained/episodes.jsonl", a.dump_untrained,
              "runs/demo_untrained/replays/env2/scen100046_lost_s32_103743.SC2Replay", "Gemma 4 E4B untrained",
-             f"BEFORE training — scenario {scen}: same unit mix and same start positions for our squad as the next tab (after AWR training); the enemy start positions differ."),
+             f"BEFORE training — scenario {scen}: same unit mix and same start positions for our squad as the next tab (after SFT on 31B games); the enemy start positions differ."),
             ("awr", "runs/demo_awr/episodes.jsonl", a.dump_awr,
-             "runs/demo_awr/replays/env2/scen100046_won_s45_104443.SC2Replay", "Gemma 4 E4B after training (AWR)",
+             "runs/demo_awr/replays/env2/scen100046_won_s45_104443.SC2Replay", "Gemma 4 E4B after SFT on 31B games",
              f"AFTER training — the same scenario {scen} as the previous tab (untrained model): same unit mix and our start positions; the enemy start positions differ.")):
         ep = find_ep(path, scen)
         frames, summ = build_from_replay(ep, json.load(open(dump)), key)

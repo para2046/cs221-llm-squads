@@ -51,7 +51,7 @@
    "only_sft": 15
   },
   {
-   "model": "4B SFT (AWR from 31B)",
+   "model": "4B SFT on 31B games",
    "n": 64,
    "wins": 34,
    "win": 53.1,

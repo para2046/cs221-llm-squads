@@ -3,19 +3,23 @@
 Each unit of a SMACv2 squad is controlled by its own call to a small language model (Gemma 4 E4B).
 We post-train that model in two ways and compare them:
 
-1. **Learn from a teacher**: games played by an open-weight frontier model through OpenRouter
-   (Gemma 4 31B), used for filtered behaviour cloning or advantage-weighted regression.
-2. **Learn from itself**: online self-play RL (PPO + KL to the base model) against the
-   StarCraft II built-in AI, with the environment running live during training.
+1. **Learn from a teacher (SFT on 31B games)**: games played by an open-weight model through OpenRouter
+   (Gemma 4 31B); the 4B is fine-tuned to reproduce the 31B's replies, after dropping clearly worse decisions.
+2. **Learn by playing (multi-agent RL)**: starting from that SFT model, MAPPO and GRPO against the
+   StarCraft II built-in AI (and, in one GRPO variant, also against the 31B), with the environment running live.
 
 A planned third experiment gives one unit a secret incentive and measures collusion / free-riding.
 
 
-## Current status (2026-11-18)
+## Current status (2026-11-19)
 
 - **Report draft**: `report/main.tex` / `report/main.pdf` (ICLR 2026 template, CS221 progress report).
-- **Results so far** (64 fixed scenarios vs SC2 built-in AI, difficulty 7): untrained E4B 17.2%, DAgger from 31B 37.5%,
-  reward-filtered SFT (AWR) from 31B 53.1%; Gemma 4 31B C0/C1/C2 = 25/50/60% (40 games each).
+- **Results so far** (vs SC2 built-in AI, difficulty 7):
+  - Same 64 new maps for every model (seeds 200000–200063, never used in training): Gemma 4 31B with messages (C2)
+    70.3%, GPT-5.6 Luna 64.1%, Gemini 3.5 Flash-Lite 53.1% (API models: evaluation only, never training data);
+    E4B SFT on 31B games 53.1%; E4B MAPPO (best RL so far) 60.9%. On maps only one of them won, 31B beat SFT 17 to 6;
+    MAPPO vs SFT is 20 to 15, a lead that is not yet confirmed.
+  - Earlier tests: untrained E4B 17.2% (64 development maps, 100000+); 31B C0/C1/C2 = 25/50/60% (40 random games each).
 - **Multi-agent RL from the 53% SFT checkpoint (in progress)**: `smac_llm/mappo.py`
   - `--algo mappo`: shared LoRA actor, centralized critic on the SMACv2 global state, per-agent GAE, token-level PPO with
     sampled old log-probs, KL to the frozen SFT adapter.
@@ -37,10 +41,11 @@ A planned third experiment gives one unit a secret incentive and measures collus
 
 ## To-do (agreed next steps)
 
-1. **Compare multi-agent RL methods on top of the 31B-distilled 4B (in progress).** Start every method from the same
-   53% SFT checkpoint: MAPPO (centralized critic on the global state) vs self-play GRPO. Use the same budget and
-   compare paired on fresh seeds 200000–200063.
-   MAPPO round 8 on seeds 100000+: 46.9% vs SFT 53.1%, p = 0.57.
+1. **Compare multi-agent RL methods on top of the 4B SFT model (in progress).** Start every method from the same
+   53% SFT model with one shared policy for all units: MAPPO (centralized critic on the global state) vs GRPO against
+   the built-in AI, and GRPO against built-in AI + 31B. Same budget; compare on the same 64 new maps (200000–200063).
+   So far MAPPO (23 rounds) 60.9% vs SFT 53.1% (maps only one won: 20 to 15). Self-play GRPO was dropped
+   (43.8%: it learned to beat itself, not the built-in AI).
 2. **Memory of past games: access to the log of the previous round under the same seed.** Before a game, agents can
    read what happened the last time this scenario (seed) was played: their own actions, outcomes and messages,
    possibly as model-written, team-shared lessons (design: `docs/memory_design.md`).

@@ -135,7 +135,7 @@ Legal actions: stop, move_north, move_south, move_east, move_west, attack_e0, at
 ```
 Reply: `{"action": "attack_e3"}`. The untrained 4B often ignores the channel: here it neither writes a message nor follows "Advance to engage".
 
-## 3. A colossus prompt in C2 (trained 4B, SFT/AWR)
+## 3. A colossus prompt in C2 (trained 4B, SFT on 31B games)
 
 Scenario 100046, step 7, agent a0. This is the game shown in the demo. The history block shows how its own target, e3, was worn down and killed.
 
@@ -204,5 +204,5 @@ Measured over all 31B C2 games: a teammate that can hit the enemy named in a mes
 
 ## 5. Training targets
 
-- **SFT (AWR, DAgger).** The target is the 31B's full reply (`action` + `msg`) for the same prompt format. DAgger: the 4B plays and the 31B labels the states the 4B visits.
+- **SFT on 31B games (and DAgger).** The target is the 31B's full reply (`action` + `msg`) for the same prompt format. DAgger: the 4B plays and the 31B labels the states the 4B visits.
 - **MAPPO / GRPO.** The same prompt. The sampled reply tokens and their log-probs are stored and reused as the PPO "old" policy. The shaped reward is never shown to the model.

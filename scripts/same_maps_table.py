@@ -52,7 +52,7 @@ models = [("Gemma 4 31B (teacher)", api("evalonly_31b_fixed40", "evalonly_31b_fi
           ("Gemini 3.5 Flash-Lite", api("evalonly_gflashlite_test", "evalonly_gflashlite_fixed40", "evalonly_gflashlite_fixed40b",
                                         "evalonly_gflashlite_fixed64rest", "evalonly_gflashlite_fix8")),
           ("4B MAPPO (best RL so far)", f64("f64_mappo")),
-          ("4B SFT (AWR from 31B)", f64("f64_sft"))]
+          ("4B SFT on 31B games", f64("f64_sft"))]
 rows = []
 for name, W in models:
     ks = [k for k in MAPS if k in W]
@@ -60,7 +60,7 @@ for name, W in models:
     rows.append(dict(model=name, n=len(ks), wins=sum(W[k] for k in ks), win=round(100 * sum(W[k] for k in ks) / len(ks), 1),
                      n_grouped=len(g), grouped=round(100 * sum(W[k] for k in g) / max(len(g), 1), 1),
                      n_split=len(s), split=round(100 * sum(W[k] for k in s) / max(len(s), 1), 1)))
-ref = dict(models)["4B SFT (AWR from 31B)"]
+ref = dict(models)["4B SFT on 31B games"]
 for r, (name, W) in zip(rows, models):
     ks = [k for k in MAPS if k in W and k in ref]
     r["only_this"] = sum(W[k] and not ref[k] for k in ks); r["only_sft"] = sum(ref[k] and not W[k] for k in ks)
