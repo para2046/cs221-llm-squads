@@ -22,7 +22,7 @@ A planned third experiment gives one unit a secret incentive and measures collus
   - `--algo grpo`: self-play GRPO (both teams share the policy, group = rollouts of the same scenario).
   - Reward: `ShapedReward2` in `smac_llm/game.py` (team reward + per-unit credit that sums to 0; unit test in `tests/`).
   - Behaviour analysis: `scripts/behavior_stats.py`.
-- **Protocol**: `docs/unified_protocol.md`. **Related papers**: `paper/README.md`.
+- **Prompts and channel examples**: `docs/prompts.md`. **Protocol**: `docs/unified_protocol.md`. **Related papers**: `paper/README.md`.
 - Not in the repo: run outputs, logs, model adapters, videos, StarCraft II, API keys.
 
 ## Layout
