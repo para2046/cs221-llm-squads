@@ -25,6 +25,23 @@ A planned third experiment gives one unit a secret incentive and measures collus
 - **Prompts and channel examples**: `docs/prompts.md`. **Protocol**: `docs/unified_protocol.md`. **Related papers**: `paper/README.md`.
 - Not in the repo: run outputs, logs, model adapters, videos, StarCraft II, API keys.
 
+
+## To-do (agreed next steps)
+
+1. **Compare multi-agent RL methods on top of the 31B-distilled 4B (in progress).** Start every method from the same
+   53% SFT checkpoint: MAPPO (centralized critic on the global state) vs self-play GRPO. Use the same budget and
+   compare paired on fresh seeds 200000–200063.
+   MAPPO round 8 on seeds 100000+: 46.9% vs SFT 53.1%, p = 0.57.
+2. **Memory of past games: access to the log of the previous round under the same seed.** Before a game, agents can
+   read what happened the last time this scenario (seed) was played: their own actions, outcomes and messages,
+   possibly as model-written, team-shared lessons (design: `docs/memory_design.md`).
+   - This is cross-game, individual learning rather than coordination as such.
+   - It must be tested on seeds never used for analysis or model selection, so it doesn't overfit the evaluation set.
+3. **Collusion: self reward above team reward.** Give one or more units a secret individual incentive that conflicts
+   with the team goal, then measure free-riding and collusion.
+   - Measures: who takes damage, kill stealing, say–do consistency, whether messages reveal or hide the incentive.
+   - Related: `paper/` (Secret Collusion, Colosseum) and `docs/coordination_lit.md`.
+
 ## Layout
 
 ```
