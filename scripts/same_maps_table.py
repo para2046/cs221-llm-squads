@@ -1,13 +1,15 @@
 """Win rates of every model on the same fixed maps 200000-200063 (grouped vs split start), for slide 4.
 usage: python scripts/same_maps_table.py > report/slides_src/same_maps.json"""
-import json, glob, re
+import json, glob, re, os
 R = re.compile(r"a(\d), a (\w+) at \(([-\d.]+), ([-\d.]+)\)")
 MAPS = range(200000, 200064)
 
 
 def f64(run):
+    """mappo.py writes eval_episodes.jsonl, train.py --mode eval writes episodes.jsonl."""
     W = {}
-    for l in open(f"runs/{run}/eval_episodes.jsonl"):
+    f = f"runs/{run}/eval_episodes.jsonl"
+    for l in open(f if os.path.exists(f) else f"runs/{run}/episodes.jsonl"):
         e = json.loads(l)
         if e.get("team", "A") == "A":
             W[e["scenario"]] = bool(e["info"].get("battle_won"))
@@ -53,6 +55,13 @@ models = [("Gemma 4 31B (teacher)", api("evalonly_31b_fixed40", "evalonly_31b_fi
                                         "evalonly_gflashlite_fixed64rest", "evalonly_gflashlite_fix8")),
           ("4B MAPPO (best RL so far)", f64("f64_mappo")),
           ("4B SFT on 31B games", f64("f64_sft"))]
+import os
+for name, run in [("4B GRPO self-play", "f64_grpo"), ("4B GRPO vs built-in AI", "f64_grpo_ai"),
+                  ("4B untrained", "f64_untrained"), ("4B untrained, no history", "f64_untrained_nohist")]:
+    if glob.glob(f"runs/{run}/*episodes.jsonl"):
+        W = f64(run)
+        if len([k for k in MAPS if k in W]) == len(MAPS):   # only complete runs
+            models.append((name, W))
 rows = []
 for name, W in models:
     ks = [k for k in MAPS if k in W]

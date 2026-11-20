@@ -25,212 +25,254 @@ Stanford University \\
 Teams of LLM agents are increasingly asked to act together while each sees only part of the world.
 We study the smallest such setting that still needs real-time coordination: a StarCraft~II squad in
 which \emph{every unit is a separate copy of a language model} that reads a text description of what
-its own unit sees and returns one order per step. We ask three questions. (Q1) Does a communication
-channel between the copies help, and does the answer depend on model size? (Q2) Does a short
-per-unit memory of one's own recent actions and their outcomes help? (Q3) Can a small open model
-(Gemma~4 E4B) be improved by self-play reinforcement learning, and which shaped reward works? (Q4) With
-the same reward, can it instead learn from a larger model (Gemma~4 31B)? All
-conditions share one system prompt that states only the game rules: it contains no tactics, so any
-coordination we observe (e.g.\ focus fire) is invented by the model itself.
+its own unit sees and returns one order per step. We ask: (Q1) Does a communication channel between
+the copies help, and does the answer depend on model size? (Q2) Does a short per-unit memory of one's
+own recent actions and their outcomes help? (Q3) Can a small open model (Gemma~4 E4B) learn to play
+from a larger one (Gemma~4 31B)? (Q4) Can multi-agent RL (MAPPO) against the game's AI improve
+it further? (Q5) Where do the gains come from: which behaviours change? All conditions share one
+system prompt that states only the game rules: it contains no tactics, so any coordination we observe
+(e.g.\ focus fire) is produced by the model itself.
 
 \section{Literature Review}
 \paragraph{LLMs in StarCraft.} TextStarCraft \citep{ma2023textsc2} and LLM-PySC2 \citep{llmpysc2}
 put a single LLM in charge of a full game (macro, or many units through one prompt); both report that
 LLMs struggle with fine-grained unit control. HLSMAC \citep{hlsmac2025} moves SMAC-style scenarios
-to high-level strategy to suit LLMs. COMPASS \citep{li2025compass} runs decentralised VLM agents with code skills and a structured multi-hop entity-communication protocol on SMACv2 and reaches 57\% on Protoss 5v5 (vs 27\% for QMIX); its protocol is close to our C1 channel, but it uses demonstrations and a skill library and does not ablate the channel. Closest to us is SMAC-Talk \citep{smactalk2026}, a natural-language
+to high-level strategy to suit LLMs. COMPASS \citep{li2025compass} runs decentralised VLM agents with
+code skills and a structured communication protocol on SMACv2 and reaches 57\% on Protoss 5v5; its
+protocol is close to our C1 channel, but it uses demonstrations and a skill library and does not
+ablate the channel, and its observations and controller differ from ours, so it is context rather
+than a controlled baseline. Closest to us is SMAC-Talk \citep{smactalk2026}, a natural-language
 extension of SMAC with decentralised LLM control and a language channel. We differ in three ways: we
-use the procedurally generated SMACv2 \citep{ellis2023smacv2} (new unit mix and spawn each game, so no
-map memorisation); we isolate the channel with a strict one-factor design (no comm / state reports /
-reports + free text) evaluated on fixed scenario seeds; and we post-train the small model with
-self-play RL rather than only prompting. Classic MARL on SMAC \citep{samvelyan2019smac} (QMIX \citep{rashid2018qmix}, MAPPO \citep{yu2022mappo})
-needs millions of steps and yields uninterpretable messages; SMAC-Hard \citep{deng2024smachard} shows it overfits the
-built-in opponent, a caveat that also applies to us. Our policy is a pretrained LLM with readable messages,
-trained on $\sim$10$^2$ games.
+use the procedurally generated SMACv2 \citep{ellis2023smacv2} (new unit mix and spawn each game);
+we isolate the channel with a one-factor design (no comm / state reports / reports + free text)
+evaluated on fixed scenario seeds; and we post-train the small model, first by imitation and then by
+multi-agent RL. Classic MARL on SMAC \citep{samvelyan2019smac} (QMIX \citep{rashid2018qmix}, MAPPO
+\citep{yu2022mappo}) needs millions of steps and yields uninterpretable messages; SMAC-Hard
+\citep{deng2024smachard} shows it overfits the built-in opponent, a caveat that also applies to us.
+Our policy is a pretrained LLM with readable messages, trained on a few hundred games.
 \paragraph{Multi-agent RL for LLMs.} MAPoRL \citep{park2025maporl}, MAGRPO \citep{magrpo2025},
 Stronger-MAS/AT-GRPO \citep{strongermas2025} and MARFT \citep{liao2025marft} train several LLM agents
-with a team reward and group-relative advantages on reasoning or coding tasks; AT-GRPO shows that
-groups must compare rollouts of the \emph{same} agent and turn. SPIRAL \citep{liu2025spiral} uses
-zero-sum self-play between copies of one LLM. We follow the same recipe (shared LoRA, group baseline,
-self-play) but in a real-time, partially observable environment with 5--10 concurrent agents and a
-dense game reward, which is much harder for credit assignment. \citet{hasan2026grpo} found that
-naive GRPO did not produce coordination in Dining Philosophers; our current RL result agrees (Sec.~7),
-which motivates our shaped and per-unit rewards. LLM-Coordination \citep{agashe2023llmcoord} evaluates prompted LLMs on cooperative games.
-\paragraph{Collusion and incentives.} LLM agents can collude \citep{motwani2024secret,shi2026emergent,nakamura2026colosseum} and free-ride
-\citep{piedrahita2025corrupted}; counterfactual credit \citep{foerster2018coma,li2026ccpo} is the principled alternative to our heuristic per-unit credit.
+with a team reward and group-relative advantages \citep{shao2024grpo} on reasoning or coding tasks;
+AT-GRPO shows that groups must compare rollouts of the \emph{same} agent and turn. SPIRAL
+\citep{liu2025spiral} uses zero-sum self-play between copies of one LLM. We use a centralised critic as in MAPPO, in a real-time,
+partially observable game with 5 concurrent agents and long episodes, where credit assignment is much
+harder. \citet{hasan2026grpo} found that naive GRPO did not produce coordination in Dining
+Philosophers.
+LLM-Coordination \citep{agashe2023llmcoord} evaluates prompted LLMs on cooperative games.
+\paragraph{Collusion and incentives.} LLM agents can collude
+\citep{motwani2024secret,shi2026emergent,nakamura2026colosseum} and free-ride
+\citep{piedrahita2025corrupted}; counterfactual credit \citep{foerster2018coma,li2026ccpo} is the
+principled alternative to our heuristic per-unit credit.
 
 \section{Dataset / Environment}
 There is no fixed dataset: data are games generated by the environment. We use SMACv2
 \texttt{10gen\_protoss}, 5 vs 5, against the built-in AI (difficulty 7). Each scenario samples a unit
-mix from \{zealot, stalker, colossus\} (identical for both teams) and random or surrounded spawns; one
-step is 0.5~game seconds and games end at 200 steps (draw). For E4B, every condition uses the same 64 scenario seeds, which fix the unit mix of each game
-(spawn positions still vary), so we pair games by seed; the 40 games per 31B cell were not seeded
-this way and are compared unpaired. We logged over 1{,}500 games (every unit's prompt, reply and the game state per step; $\approx$300
-model calls per game). Preprocessing is the text interface:
-each unit's observation is rendered as text (own state, visible teammates and enemies with distance,
-hp, shield, ``[in range]''), followed by the list of legal orders. Unparseable or illegal replies are
-replaced by \texttt{stop} and counted.
+mix from \{zealot, stalker, colossus\} (identical for both teams) and a start type: \emph{grouped}
+(our five units around the map centre, enemies around them) or \emph{split}. One step is 0.5~game
+seconds and games end at 200 steps (draw). A scenario seed fixes the unit mix and the start type
+(on grouped maps our formation is also fixed; enemy positions still vary between runs), so we pair
+games by seed. We use two seed sets: \textbf{development} seeds 100000--100063, used while building
+the system (channel, history and early training comparisons), and \textbf{test} seeds
+200000--200063 (35 grouped, 29 split), never used for training or model selection, on which every
+model in the final comparison plays the same 64 maps. The 31B channel ablation (40 games per cell) was
+run before seeding and is compared unpaired. We logged over 1{,}500 games (every unit's prompt,
+reply and the game state per step; $\approx$300 model calls per game). Preprocessing is the text
+interface: each unit's observation is rendered as text (own state, visible teammates and enemies
+with distance, hp, shield, ``[in range]''), followed by the list of legal orders. Unparseable or
+illegal replies are replaced by \texttt{stop} and counted.
 
 \section{Baselines}
-(i) \textbf{Random} legal orders: 0\% wins, return 5.4 (20 games). (ii) \textbf{Rule bots} with the
-same local vision as the LLM units: \emph{focus} (every unit attacks the weakest enemy in range,
-otherwise moves toward the nearest seen enemy) wins 50\%; \emph{kite} (focus, plus stalkers step
-back from zealots while reloading) wins 52.5\% (40 games each). (iii) \textbf{Untrained Gemma~4
-E4B} with no communication (C0): 17.2\% (64 games). The rule bots are strong because they execute a
-known good tactic perfectly; they bound what coordination alone can buy.
+(i) \textbf{Random} legal orders: 0\% wins (20 games). (ii) \textbf{Rule bots} with the same local
+vision as the LLM units: \emph{focus} (every unit attacks the weakest enemy in range, otherwise moves
+toward the nearest seen enemy) wins 50\%; \emph{kite} (focus, plus stalkers step back from zealots
+while reloading) 52.5\% (40 games each). (iii) \textbf{Untrained Gemma~4 E4B} (C2): 21.9\% on the test seeds
+(17.2\% on the development seeds). (iv) \textbf{Larger models, evaluation only}, on the 64 test seeds: Gemma~4 31B
+(our teacher) 70.3\%, GPT-5.6 Luna 64.1\%, Gemini~3.5 Flash-Lite 53.1\%. Outputs of closed models are
+never used as training data.
 
 \section{Main Approach}
 \paragraph{Agents and prompt.} Each unit $u$ at step $t$ receives the shared system prompt (rules,
 unit statistics, ``you decide your own tactics''), its observation $o_t^u$, optionally team
 information $c_t$, and its history $h_t^u$, and replies with JSON. A real (abridged) prompt:
-{\small
+{\scriptsize
 \begin{verbatim}
-Step 14. You are agent a0, a stalker at (14.8, 16.0), hp 62/80, shield 0/80, weapon cooldown 16, ...
+Step 14. You are agent a0, a stalker at (14.8, 16.0), hp 62/80, shield 0/80, cooldown 16, ...
 Visible enemies:  e3 zealot at (13.1, 17.0), dist 2.0, hp 40/100, shield 0/50 [in range]
-Team reports: {"a3": {"type": "zealot", "hp": 100, "enemies": [...]}, ...}  (C1/C2 only)
+Team reports: {"from":"a3","type":"zealot","hp":100,"sees":[...]} ...   (C1/C2 only)
 Your last steps: step 12: move_west -> you 150 -> 150
                  step 13: attack_e3 -> e3 88 -> 40; you 150 -> 142
 Team score so far: 6.3 / 20
 Legal actions: stop, move_north, move_south, move_east, move_west, attack_e3
 \end{verbatim}}
 \noindent Reply in C2: \texttt{\{"action": "attack\_e3", "msg": "finishing e3"\}}. The five replies form
-the joint action. \textbf{Channels}: C0 none; C1 every teammate's state and visible enemies as JSON
-(the ``what they see'' channel); C2 = C1 + a free message of $\le$8 words shown to teammates next step
-(no suggested content). \textbf{History}: the environment writes, per unit, its last 5 actions with
-the target's and its own hp+shield before$\to$after, and the team's SMAC score; it is game facts only.
+the joint action. \textbf{Channels}: C0 none; C1 every teammate's state and visible enemies as JSON;
+C2 = C1 + a free message of $\le$8 words shown to teammates next step (no suggested content).
+\textbf{History}: the environment writes, per unit, its last 5 actions with the target's and its own
+hp+shield before$\to$after, and the team's SMAC score; it is game facts only. All post-training uses C2
+with history.
 
-\paragraph{Self-play GRPO.} The E4B policy $\pi_\theta$ (LoRA rank 16) controls both teams (10
-agents) in self-play. Each iteration samples 2 scenarios and plays $G{=}4$ games of each. For a
-decision of unit $u$ on team $k$ at step $t$ in game $i$, with team reward $r_t$ and per-unit reward
-$r_t^u$,
-\begin{equation}
-A_{i,t}^u = \frac{G_{i,t} + G_{i,t}^u - \frac{1}{G}\sum_{j} G_{j,t}}{\max(\sigma_{\text{group}}, \sigma_{\min})},
-\qquad G_{i,t}=\sum_{s\ge t}\gamma^{s-t} r_{i,s},
-\end{equation}
-where the group is the 4 games of the same (scenario, team), so side and unit mix cancel. We maximise
-the PPO-clip objective (clip 0.2) with a KL penalty (0.04) to the frozen base (adapter disabled), plus
-a self-imitation term (coef 0.1) on decisions from won games. \textbf{Rewards} (never shown to the
-agents): \emph{v1}: $r_t$ = (enemy hp lost $-$ own hp lost, normalised) $+0.1$/kill $-0.1$/death,
-$\pm1$ win/loss, $-0.5$ draw; $r^u_t{=}+0.005$ when attacking a teammate's target. \emph{v2}
-(zero-sum, potential-based \citep{ng1999shaping}, so it does not change the optimal policy, unlike v1's kill and focus bonuses): $r_t = \Phi(s_{t+1})-\Phi(s_t)$ with $\Phi = 0.5\,\Delta H + 0.25\,\Delta
-L$ (hp+shield and alive-count differences, so shield regeneration counts) and $\pm2$ outcome, draw 0;
-per-unit credit $r^u_t = 0.5\,(c^u_t - D_t/n_t)$, where $c^u_t$ is the damage unit $u$ dealt minus
-received and $D_t$ the team total, so $\sum_u r^u_t=0$. \emph{v2.1}: v2 plus a zero-sum bonus
-$0.15(\text{sync}_{\text{own}}-\text{sync}_{\text{enemy}})$ at first contact, where sync is the share of
-units within 9 of the centroid. Self-play used 9 iterations of 8 games (1{,}024 sampled decisions, 8 updates per iteration, lr
-$3{\times}10^{-5}$): $\approx$72 updates in total.
-\paragraph{Learning from 31B (supervised).} Both methods are supervised fine-tuning, not RL. \emph{Offline AWR} \citep{peng2019awr}: we log 208 Gemma~4 31B games in C2
-(44{,}460 decisions, 60.7\% won) and train E4B on the 31B's replies (action and message) with
-$\mathcal{L} = -\sum w\,\log\pi_\theta(y_{31B}\mid x)$, where $x$ is exactly the prompt E4B sees,
-$w=\min(e^{A/(\sigma\beta)},20)$ and $A$ is the v2 return-to-go minus its mean at the same step index. We drop
-decisions with $w<0.3$ (35{,}038 remain) and train 20{,}000 decisions (2{,}500 updates, lr $10^{-4}$).
-Because we normalise weights within a minibatch of size 1, the weights cancel: in effect this is behaviour
-cloning on the kept decisions (81\% from won games), i.e.\ the reward acts as a filter.
-\emph{DAgger} \citep{ross2011dagger}: E4B plays against the built-in AI; 31B (temperature 0) labels 512 of the
-states E4B actually visited per iteration; E4B is trained by cross-entropy on the growing pool of labels
-(8 iterations, 4{,}096 labels, 128 updates, lr $3{\times}10^{-5}$; the KL penalty to the base model stayed on).
+\paragraph{Reward (training only, never shown to the agents).} Let $H_t$ be the difference between
+the two teams' remaining hp+shield (each normalised by its initial total) and $L_t$ the difference in
+alive fractions. The team reward is $r_t = 0.5\,\Delta H_t + 0.25\,\Delta L_t$, plus $+2$ / $-2$ /
+$0$ at a win / loss / draw; there is no bonus for focus fire, movement or talking. Per-unit credit
+$r_t^u = 0.5\,(c_t^u - \bar c_t)$, where $c_t^u$ is the damage unit $u$ dealt (split among the units
+attacking a target) minus the damage it received, so $\sum_u r_t^u = 0$. This is a heuristic
+attribution, not a counterfactual estimate: a unit that absorbs damage to protect teammates is
+penalised. The dense term is a difference of potentials $\Phi(s_{t+1})-\Phi(s_t)$; policy invariance
+\citep{ng1999shaping} requires $\gamma\Phi(s_{t+1})-\Phi(s_t)$, so with $\gamma=0.99$ we do not claim
+the shaping leaves the optimal policy unchanged.
+
+\paragraph{Learning from 31B (supervised).} We log 208 Gemma~4 31B games in C2 (44{,}460 decisions,
+60.7\% won) and fine-tune E4B (LoRA rank 16) on the 31B's replies (action and message) given exactly
+the prompt E4B sees. We planned advantage-weighted regression \citep{peng2019awr}, but with a
+minibatch of one the normalised weights cancel, so the method actually run is \emph{reward-filtered
+behaviour cloning}: we drop decisions whose return-to-go is far below the mean at that step (35{,}038
+kept, 81\% from won games) and train on 20{,}000 of them (2{,}500 updates, lr $10^{-4}$). We call this
+model \textbf{SFT on 31B games}.
+
+\paragraph{Multi-agent RL from the SFT model.} All five units share one LoRA actor (the SFT adapter)
+that is trained on-policy against the built-in AI. Each round plays 16 new games (temperature 1.0)
+and updates the actor once with a token-level PPO-clip objective \citep{schulman2017ppo} (clip 0.2)
+on up to 1{,}024 sampled decisions, using the log-probabilities recorded at sampling time, plus a KL
+penalty (0.02) to the frozen SFT adapter and a penalty of 0.1 for invalid orders.
+\emph{MAPPO} \citep{yu2022mappo}: a centralised critic $V_\phi(s_t,u)$ (an MLP on the 130-dimensional
+SMACv2 global state plus a one-hot unit id; the actor never sees this state) gives per-unit GAE
+\citep{schulman2015gae} advantages ($\gamma{=}0.99$, $\lambda{=}0.95$); the first round trains only the
+critic. Compared with the original MAPPO, our
+actor is an LLM starting from SFT, with a KL anchor and no entropy bonus, one PPO pass per round (not
+5--15), no PopArt or value clipping, and $\approx$22k environment steps instead of millions.
 
 \section{Evaluation Metrics}
-\textbf{Win rate}; E4B conditions are compared paired by seed with McNemar's exact test ($b$ / $c$ =
-seeds won only by X / only by Y, $p = P(\text{Bin}(b{+}c,\tfrac12)$ as extreme as $b)$), 31B cells with
-Fisher's exact test. \textbf{Return}: SMAC's default team reward (max $\approx$20). \textbf{Behaviour}
-(from logs): attack share; \emph{focus rate} = fraction of steps with $\ge$2 attackers where all hit one
-target; \emph{weakest} = share of attacks on the lowest hp+shield enemy in range; \emph{cooldown
-moves}. \textbf{Messages} (C2): message rate, share naming an enemy, and \emph{follow rate}
-$= P(a^{v}_{t+1}{=}\text{attack}_e \mid u \text{ named } e \text{ at } t,\ e \text{ in } v\text{'s range})$,
-compared with the chance level $\mathbb{E}[1/|\text{legal attacks}|]$. 
+\textbf{Win rate} against the built-in AI; models are compared on the same seeds by the number of maps
+\emph{only one of them} won ($b$ vs $c$; exact McNemar test), and we report 95\% paired bootstrap
+intervals over maps. \textbf{Behaviour} (from logged prompts and replies, per game, then averaged):
+\emph{target switch} (leaves a target still in range), \emph{move away} (a move order away from the
+nearest visible enemy), \emph{low-hp retreat} (the same, below 35\% hp+shield), \emph{kite} (stalker
+reloading with a zealot within 4 moves), \emph{focus} (steps with $\ge$2 attackers where all hit one
+target), \emph{weakest} (attacks on the lowest hp+shield enemy in range), \emph{spread} (mean
+distance of our units to their centroid during the fight), invalid orders. \textbf{Messages} (C2):
+message rate, share naming an enemy, and \emph{follow rate}
+$= P(a^{v}_{t+1}{=}\text{attack}_e \mid u \text{ named } e \text{ at } t,\ e \text{ in } v\text{'s range})$
+against the chance level $\mathbb{E}[1/|\text{legal attacks}|]$. To separate behaviour that
+\emph{causes} an advantage from behaviour that \emph{follows} from being ahead or behind, we also
+compute the features on the \emph{opening} only (steps before either side loses a unit).
 
 \section{Results \& Analysis}
+\label{sec:results}
 \begin{figure}[t]
 \centering
-\includegraphics[width=\linewidth]{fig_winrate.pdf}
+\includegraphics[width=\linewidth]{fig_same_maps.pdf}
 \vspace{-6mm}
-\caption{Win rate against the built-in AI under the unified protocol (95\% Wilson CIs). E4B cells share the same 64 scenario seeds.}
+\caption{Win rate against the built-in AI (difficulty 7) on the same 64 test maps (seeds
+200000--200063), with 95\% Wilson intervals. Closed models are evaluation only.}
 \label{fig:win}
 \end{figure}
 \begin{table}[t]
 \centering\footnotesize
-\caption{Comparisons and behaviour. $b/c$: seeds won only by the first / second condition (E4B,
-McNemar); 31B rows use Fisher's exact test. Msg: share of decisions with a message; target: share of messages naming an enemy.}
+\caption{Channel and history ablations (development seeds for E4B; 31B: 40 unpaired games per cell).
+$b/c$: seeds won only by the first / second condition.}
 \label{tab:main}
-\begin{tabular}{llrrrrrr}
+\begin{tabular}{llrrr}
 \toprule
-Model & Comparison & win (\%) & $b/c$ & $p$ & focus & weakest & msg / target \\
+Model & Comparison & win (\%) & $b/c$ & $p$ \\
 \midrule
-31B & C1 vs C0 & 50 vs 25 & -- & 0.037 & .34 / .36 & .93 / .93 & -- \\
-31B & C2 vs C0 & 60 vs 25 & -- & 0.003 & .36 / .36 & .92 / .93 & .83 / .85 \\
-31B & C2 vs C1 & 60 vs 50 & -- & 0.50 & & & \\
-E4B & C1 vs C0 & 18.8 vs 17.2 & 8/7 & 1.0 & .36 / .31 & .88 / .85 & -- \\
-E4B & C2 vs C0 & 17.2 vs 17.2 & 7/7 & 1.0 & .32 / .31 & .85 / .85 & .23 / .38 \\
-E4B & C2 vs C2 no history & 17.2 vs 3.1 & 10/1 & 0.012 & .32 / .30 & .85 / .85 & \\
-\midrule
-E4B RL v1 & vs untrained (C2) & 23.4 vs 17.2 & 11/7 & 0.48 & .33 & .88 & .19 / .40 \\
-E4B RL v2 & vs untrained & 14.1 vs 17.2 & 4/6 & 0.75 & .30 & .87 & .21 / .47 \\
-E4B RL v2.1 & vs untrained & 20.3 vs 17.2 & 9/7 & 0.80 & .37 & .86 & .24 / .44 \\
-\midrule
-E4B AWR & vs untrained & 53.1 vs 17.2 & 26/3 & $<$0.001 & .35 & .90 & .81 / .85 \\
-E4B DAgger & vs untrained & 37.5 vs 17.2 & 18/5 & 0.011 & .35 & .90 & .71 / .81 \\
+31B & C1 vs C0 & 50 vs 25 & -- & 0.037 \\
+31B & C2 vs C0 & 60 vs 25 & -- & 0.003 \\
+31B & C2 vs C1 & 60 vs 50 & -- & 0.50 \\
+E4B & C1 vs C0 & 18.8 vs 17.2 & 8/7 & 1.0 \\
+E4B & C2 vs C0 & 17.2 vs 17.2 & 7/7 & 1.0 \\
+E4B & C2 vs C2 no history & 17.2 vs 3.1 & 10/1 & 0.012 \\
 \bottomrule
 \end{tabular}
 \end{table}
 \paragraph{Q1: communication helps the large model only.} For Gemma~4 31B, sharing teammates' states
-doubles the win rate (25$\to$50\%, $p{=}0.037$) and adding free messages reaches 60\% ($p{=}0.003$ vs
-C0; the C2--C1 step is not significant). Without any tactic in the prompt, 31B \emph{invents focus
-fire through language}: 83\% of its decisions carry a message, 85\% of messages name a target
-(``focusing e4'', ``finishing e1''), and a teammate that can hit the named enemy attacks it 70\% of the
-time vs 45\% by chance. It rarely forms higher-level plans (regroup $<$1\%, Table~\ref{tab:msg}). Focus and weakest-target
-rates do not change with the channel; we hypothesise that information changes \emph{when} and \emph{where}
-units engage rather than per-step targeting. The 4B model gains nothing from either channel: its messages are mostly
-movement chatter (``moving towards action'') and its states reports are not used.
-\paragraph{Q2: memory helps the small model.} Removing the 5-step history drops E4B from 17.2\% to 3.1\%
-(10 vs 1 discordant scenarios, $p{=}0.012$), the largest effect we measured for the 4B.
-\paragraph{Q3: short self-play RL does not help.} After 8 iterations (64 self-play games,
-$\approx$72 updates, $\approx$7 L40S GPU-hours per reward), no reward version beats the untrained model on the 64 held-out
-scenarios (best v1: 23.4\% vs 17.2\%, $p{=}0.48$), and head-to-head against the untrained model the
-trained versions win 11/32, 13/32, 14/32 games vs 12, 16, 16 losses. 
-Reasons: (1) little training (72 updates) from a weak policy: GRPO can only reinforce good play it
-already samples; (2) side A won 67 of 96 head-to-head games (StarCraft hides player~2's weapon cooldown),
-which makes the outcome noisy; (3) v1's focus bonus outgrew its outcome term (0.45--0.64 vs $\le$0.56 per
-game), a reward-hacking warning that motivated the zero-sum v2.
-\paragraph{Q4: learning from 31B works.} Using the v2 reward only to select data, reward-filtered SFT (AWR) lifts E4B from 17.2\% to 53.1\%
-(26 vs 3 discordant scenarios, $p{<}10^{-4}$), close to its 31B teacher (60\%) and to COMPASS (57\%); DAgger
-reaches 37.5\% ($p{=}0.011$). Head-to-head against the untrained E4B (8 games on each side), AWR wins 13,
-loses 2, draws 1; DAgger 10--5--1. The trained models also adopt the teacher's language (Table~\ref{tab:msg}):
-messages rise from 23\% to 71--81\% of decisions and team-coordination content from 47\% to 88--95\%,
-replacing movement chatter with target calls and kill confirmations. The follow lift over chance is unchanged (+0.08--0.09), so part of the gain comes from better individual
-orders, not only from listening to teammates. Caveat: AWR used $\sim$35$\times$ more updates than self-play.
+doubles the win rate (25$\to$50\%) and adding free messages reaches 60\%; the C2--C1 step is not
+significant. Without any tactic in the prompt, 31B \emph{uses language for focus fire}: 83\% of its
+decisions carry a message, 85\% of messages name a target (``focusing e4'', ``finishing e1''), and a
+teammate that can hit the named enemy attacks it 70\% of the time vs 45\% by chance (an association:
+teammates may pick the same weak enemy independently). The untrained 4B gains nothing from either
+channel: its messages are mostly movement chatter (``moving towards action'').
+\paragraph{Q2: memory helps the small model, but less than first measured.} On the development seeds,
+removing the 5-step history dropped the untrained E4B from 17.2\% to 3.1\% (10 vs 1 maps won only by one
+side, $p{=}0.012$). On the 64 test seeds the drop is smaller, 21.9\% to 15.6\% (9 vs 5, $p{=}0.42$):
+the direction replicates but the size does not, so the first estimate was inflated by the seed set.
+Pooled over both sets (128 maps), history wins 19 maps the no-history model loses and loses 6
+($p{=}0.015$).
+\paragraph{Q3: learning from 31B works.} SFT on 31B games lifts E4B from 21.9\% to 53.1\% on the test
+seeds (25 vs 5 maps won only by one side, $p{<}0.001$; development seeds: 17.2\% to 53.1\%), where the 31B teacher still leads (70.3\%; 17 vs 6 maps, $p{=}0.03$). The trained model also
+adopts the teacher's language: messages rise from 23\% to 81\% of decisions and named targets from 40\%
+to 88\% of messages (test seeds).
+\paragraph{Q4: multi-agent RL on top of SFT (in progress).} Starting from SFT, MAPPO (23 rounds, 368 games) reaches 60.9\% on the test seeds vs 53.1\% for SFT (20 vs 15
+maps won only by one side; paired 95\% interval $-9$ to $+27$ points): a gain that is \emph{not yet
+established}. Diagnostics show the policy moves little per round (KL to SFT $\approx$0.005--0.01, PPO
+clip fraction $<$1\%), consistent with small, slow changes. Gaps between models are mostly on split
+starts (SFT 34.5\%, MAPPO 48.3\%, 31B 58.6\%); on grouped starts all are 69--80\%.
+
 \begin{table}[t]
 \centering\footnotesize
-\caption{C2 messages (\%): msg = decisions with a message; other columns = share of messages by category
-(first keyword match); coord.\ = named + type + kill + backup + regroup.}
-\label{tab:msg}
-\setlength{\tabcolsep}{4pt}
-\begin{tabular}{lrrrrrrrr}
+\caption{Behaviour per model on the same 64 test maps (mean over games). $\dagger$: the paired 95\%
+interval (bootstrap over maps) of the change from the column to its left excludes 0
+(untrained$\to$SFT and SFT$\to$MAPPO).}
+\label{tab:behav}
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lrrrr}
 \toprule
-Model & msg & named & type & kill & backup & move & retreat/kite & coord. \\
+ & untrained & SFT & MAPPO & 31B \\
 \midrule
-31B (teacher) & 83 & 68.4 & 1.4 & 13.6 & 6.7 & 4.3 & 5.1 & 90.2 \\
-E4B untrained & 23 & 33.9 & 2.5 & 0.5 & 8.2 & 41.4 & 0.5 & 47.1 \\
-E4B AWR & 81 & 73.1 & 3.0 & 12.0 & 6.5 & 4.6 & 0.6 & 94.8 \\
-E4B DAgger & 71 & 67.1 & 1.0 & 11.0 & 8.4 & 7.1 & 5.2 & 87.5 \\
+win (\%) & 21.9 & 53.1$^\dagger$ & 60.9 & 70.3 \\
+win after losing the first unit (\%) & 8 & 23 & 52 & -- \\
+invalid orders (\%) & 5.4 & 0.2$^\dagger$ & 0.0$^\dagger$ & 0.6 \\
+target switch (\%) & 13.8 & 2.1$^\dagger$ & 2.7 & 2.8 \\
+move away, enemy visible (\%) & 28.7 & 6.2$^\dagger$ & 4.4 & 14.6 \\
+low-hp retreat (\%) & 42.0 & 25.8$^\dagger$ & 13.7$^\dagger$ & 42.7 \\
+stalker kite (\%) & 0.7 & 5.3$^\dagger$ & 1.8$^\dagger$ & 20.5 \\
+focus (\%) & 37.7 & 33.7 & 40.6 & 43.7 \\
+weakest (\%) & 85.1 & 89.7$^\dagger$ & 90.2 & 92.9 \\
+spread in fight & 4.04 & 3.21$^\dagger$ & 2.86 & 3.10 \\
+messages naming an enemy (\% of decisions) & 8.9 & 71.5$^\dagger$ & 76.7$^\dagger$ & 73.0 \\
 \bottomrule
 \end{tabular}
 \end{table}
+\paragraph{Q5: where do the gains come from?} (Table~\ref{tab:behav}.)
+\emph{Untrained$\to$SFT: the squad stops wavering.} SFT does not clearly win the opening (the
+untrained model loses a unit first in 61\% of games, SFT in 47\%; the interval includes 0); it wins the
+fight that follows (after losing the first unit: 8\%$\to$23\% wins; after killing first:
+45\%$\to$83\%; kills per game 3.1$\to$4.2, own losses 4.5$\to$3.7). The untrained model leaves targets
+that are still in range (14\% of attacks vs 2\%), walks away from visible enemies (29\% of moves vs
+6\%), fights more spread out and issues invalid orders (5\%); it is picked off unit by unit. These
+differences are already present in the opening, before any unit dies, so they are a change of play,
+not a consequence of winning. SFT also targets the weakest enemy more often and talks like the teacher
+(named targets in 72\% of decisions vs 9\%).
+\emph{SFT$\to$MAPPO: fewer retreats.} The opening is unchanged (each loses a unit first in 47--48\% of
+games); the whole gain is in fights after the first loss (23\%$\to$52\% wins). The significant changes
+all point one way: damaged units retreat less (26\%$\to$14\%; when behind 64\%$\to$15\%), stalkers kite
+less (5\%$\to$2\%), and all attackers hit one target more often (34\%$\to$41\%, borderline). Retreating
+units stop dealing damage; MAPPO learned to keep them in the fight.
+\emph{RL does not move the student toward the teacher.} 31B kites (21\%), retreats when damaged (43\%)
+and moves away from enemies (15\%) far more than either 4B model. SFT copied 31B's targeting and
+messages but not these rarer repositioning moves, which imitation learns poorly; MAPPO moved further
+away from them, toward a simpler stay-and-fight strategy. These are correlations from logs; a causal
+test (removing teammates' messages at test time) is planned.
 
 \section{Next Steps}
-(1) RL on top of the distilled model: self-play GRPO from the AWR model (running), a centralised critic
-\citep{yu2022mappo}, and a win-only BC control. (2) Cross-game memory (Reflexion-style lessons). (3) Coordination
-metrics beyond win rate (follow lift, say--do consistency, engagement sync). (4) Individual-vs-team incentives:
-inject collusion and measure free-riding. (5) Fix the side asymmetry; vLLM for faster generation.
+(1) Confirm the RL gain: more MAPPO rounds with larger updates (running) and more test maps (a 10-point gap needs $\sim$300 paired maps for a clear answer).
+(2) Causal checks of coordination: drop or shuffle teammates' messages at test time. (3) Cross-game
+memory: before a game, agents read a short log of the previous game on the same seed. (4)
+Individual-vs-team incentives: give one unit a secret reward and measure free-riding and collusion.
 
 \section{Code}
-\todo{GitHub link}: \texttt{smac\_llm/} (text interface, game and rewards, server, training), \texttt{scripts/} (analysis).
+\url{https://github.com/para2046/cs221-llm-squads}: \texttt{smac\_llm/} (text interface, rewards in
+\texttt{game.py}, environment server, SFT in \texttt{train.py}, MAPPO in \texttt{mappo.py}),
+\texttt{scripts/} (evaluation and behaviour analysis: \texttt{same\_maps\_table.py},
+\texttt{behavior\_shift.py}, \texttt{gain\_analysis.py}).
 
 \section*{AI-Use Disclosure Statement}
 We used Claude Code (Anthropic, Claude Opus 5.5) to search and summarise related work, write the
 environment adapter, training and analysis code, run the experiments on our cluster, and draft this
-report. GPT-5.6 Luna and Inkling-2-Small were used only as evaluated players; no closed-model outputs
-were used as training data. All design decisions, results and text were reviewed by the author, who
-is responsible for the final content. \todo{author to confirm and edit}
+report; ChatGPT reviewed a draft and suggested revisions. GPT-5.6 Luna, Gemini~3.5 Flash-Lite and
+Inkling-2-Small were used only as evaluated players; no closed-model outputs were used as training
+data (the teacher, Gemma~4 31B, is an open-weight model). All design decisions, results and text were
+reviewed by the author, who is responsible for the final content. \todo{author to confirm and edit}
 
 \bibliography{references}
 \bibliographystyle{iclr2026_conference}

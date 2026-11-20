@@ -61,6 +61,42 @@
    "split": 34.5,
    "only_this": 0,
    "only_sft": 0
+  },
+  {
+   "model": "4B GRPO self-play",
+   "n": 64,
+   "wins": 28,
+   "win": 43.8,
+   "n_grouped": 35,
+   "grouped": 62.9,
+   "n_split": 29,
+   "split": 20.7,
+   "only_this": 12,
+   "only_sft": 18
+  },
+  {
+   "model": "4B untrained",
+   "n": 64,
+   "wins": 14,
+   "win": 21.9,
+   "n_grouped": 35,
+   "grouped": 37.1,
+   "n_split": 29,
+   "split": 3.4,
+   "only_this": 5,
+   "only_sft": 25
+  },
+  {
+   "model": "4B untrained, no history",
+   "n": 64,
+   "wins": 10,
+   "win": 15.6,
+   "n_grouped": 35,
+   "grouped": 22.9,
+   "n_split": 29,
+   "split": 6.9,
+   "only_this": 3,
+   "only_sft": 27
   }
  ]
 }
