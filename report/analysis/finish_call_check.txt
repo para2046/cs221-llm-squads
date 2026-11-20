@@ -1,0 +1,8 @@
+P(finish-off call | situation), pooled; paired bootstrap over maps SFT->MAPPO
+  no_enemy           0.002 -> 0.000 [-0.008,+0.000] 
+  enemy_far          0.000 -> 0.003 [+0.000,+0.006] *
+  in_range_ready     0.069 -> 0.097 [+0.002,+0.051] *
+  in_range_cooling   0.107 -> 0.153 [+0.031,+0.062] *
+  low_hp             0.129 -> 0.210 [+0.049,+0.112] *
+SFT message chars / reply chars = 0.26
+MAPPO message chars / reply chars = 0.29

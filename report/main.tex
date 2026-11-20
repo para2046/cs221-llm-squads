@@ -255,11 +255,13 @@ message JSD to the column on the left (bits) & -- & 0.375 & 0.009 & 0.016 \\
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{fig_actions.pdf}\\[-1mm]
-\includegraphics[width=\linewidth]{fig_mappo_trajectory.pdf}
+\includegraphics[width=\linewidth]{fig_shift_summary.pdf}
 \vspace{-6mm}
-\caption{Top: action mix in three situations on the 64 test maps. Bottom: MAPPO training games
-(16 per round, smoothed). Left: action rates stay flat and the win rate does not rise; right: message types, where
-``no message'' falls and finish-off calls rise.}
+\caption{Top: action mix in three situations on the 64 test maps. Bottom: (a) how much behaviour changed
+between consecutive models (Jensen--Shannon divergence of situation-conditioned actions and of message
+types); (b, c) MAPPO checkpoints evaluated every 2 rounds on the same 16 development maps
+(temperature 0.7; round 0 is SFT): silence falls and finish-off calls rise, while action rates and the
+win rate show no trend.}
 \label{fig:shift}
 \end{figure}
 \paragraph{Q5: where do the gains come from?} (Table~\ref{tab:behav}, Figure~\ref{fig:shift}.)
@@ -278,7 +280,7 @@ it'' pattern: 63\% of decisions name an enemy and the sender attacks that enemy 
 (12\% untrained).
 
 \emph{SFT$\to$MAPPO: same actions, more talk.} Within every situation MAPPO acts almost exactly like
-SFT (action JSD 0.002 bits, 36 times smaller than the SFT step). Averaged per game, no action rate in
+SFT (action JSD 0.002 bits, 36 times smaller than the SFT step; Figure~\ref{fig:shift}a). Averaged per game, no action rate in
 Table~\ref{tab:behav} changes significantly; over pooled decisions only invalid orders (0.3\%$\to$0\%)
 do. Damaged units move away 2.2\% vs 1.4\% of the time (interval includes 0). MAPPO attacks on a
 slightly smaller share of all decisions (76\% vs 79\%), but only because it spends more decisions
@@ -288,17 +290,21 @@ given situation.
 figure was the share of \emph{moves} that go away, and damaged units rarely move (about 80\% of their
 decisions are attacks), so over all low-hp decisions the difference is negligible.} What does change is
 the messages: finish-off calls (``finishing e2'') rise from 8.8\% to 12.7\% of decisions, messages
-mentioning an enemy from 72\% to 77\%, and silence falls from 19\% to 14\%. Training shows the same drift
-over time (Figure~\ref{fig:shift}, bottom; slope per 10 rounds with 95\% bootstrap interval): in the
-training games ``no message'' falls by 3.7 points ($-5.0$ to $-2.6$), finish-off calls rise by 2.1
+mentioning an enemy from 72\% to 77\%, and silence falls from 19\% to 14\%. The rise in finish-off calls
+is not a side effect of MAPPO spending time in different states: it holds within each combat situation
+(in range and reloading 10.7\%$\to$15.3\%, low hp 12.9\%$\to$21.0\%; both intervals exclude 0). Training shows the same drift
+over time (slope per 10 rounds with 95\% bootstrap interval): in the training games ``no message'' falls by 3.7 points ($-5.0$ to $-2.6$), finish-off calls rise by 2.1
 ($+1.5$ to $+2.7$) and named targets by 1.6 ($+0.2$ to $+3.3$), while no action rate shows a trend and
 the training win rate does not rise ($-3.9$ points per 10 rounds, $-9.8$ to $+2.2$). Training games use
 random maps and temperature 1.0, so we repeated this on the checkpoint evaluations made every 2 rounds
-on the same 16 development maps at temperature 0.7: the result is the same (no message $-3.7$ per 10
+on the same 16 development maps at temperature 0.7 (Figure~\ref{fig:shift}b,c): the result is the same (no message $-3.7$ per 10
 rounds, $-6.8$ to $-0.9$; finish-off calls $+2.4$, $+1.9$ to $+3.0$; no action trend; win rate
-flat). The reward contains nothing about messages, so this drift is a by-product of the update (it may
-follow from messages appearing in winning episodes, or from the KL anchor allowing cheap changes in the
-free-text field). Together with the small KL to SFT (Q4), this suggests MAPPO has not yet changed the
+flat). The reward contains nothing about messages, so this drift is a by-product of the update. A likely
+mechanism: our PPO loss gives every token of a reply the same advantage, the message tokens included,
+so message wording that happens to co-occur with above-average returns is reinforced together with the
+action. After SFT the action in each situation is already nearly deterministic (e.g.\ 97\% move
+toward an out-of-range enemy), while the message is free text with more room to move under the same
+KL budget. We have not isolated this (e.g.\ by masking message tokens out of the loss). Together with the small KL to SFT (Q4), this suggests MAPPO has not yet changed the
 strategy: the 53\%$\to$61\% difference, itself not significant, may be partly noise or come from
 changes too subtle for these categories (e.g.\ which enemy is ``weakest'' when several are close).
 Evaluating intermediate checkpoints on the 64 test maps is left for future work.

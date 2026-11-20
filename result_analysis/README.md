@@ -236,3 +236,16 @@ Script: `scripts/behavior_robustness.py` → `outputs/behavior_robustness.{txt,j
 - **Checkpoint evals during MAPPO** (the same 16 dev maps every 2 rounds, T=0.7) repeat the training-game trends: no message −3.7 points per 10 rounds (−6.8 to −0.9), finish-off calls +2.4 (+1.9 to +3.0), no action trend, flat win rate.
 - **The second agent's draft LaTeX** used the old share-of-moves "low-hp retreat 25.8→13.7%" and "kite" numbers; those are superseded and were not used.
 - **To do later:** evaluate MAPPO checkpoints (adapter_it4/8/12/16/20) on the 64 test maps.
+
+## Second handoff merged (Nov 19, late)
+
+- **New figure** `fig_shift_summary.pdf` (report Figure 2, bottom), drawn from exact values (`scripts/fig_shift_summary.py`):
+  - (a) JSD of situation-conditioned actions vs message types between consecutive models (the second agent's idea);
+  - (b, c) MAPPO checkpoint evaluations on the same 16 dev maps every 2 rounds. These replace the training-game trajectory in the figure; the training-game slopes stay in the text.
+- **Finish-off calls rise within every combat situation** (`outputs/finish_call_check.txt`), so the rise is not a shift in which states units end up in:
+  - in range and reloading: 10.7% → 15.3%;
+  - low HP: 12.9% → 21.0%.
+- **Mechanism (hypothesis, added to the report):** `smac_llm/mappo.py` gives every completion token, message included, the same advantage.
+  - After SFT, actions are near-deterministic per situation, so the free-text message has more room to move under the KL budget.
+  - Not isolated yet: a test would mask message tokens out of the loss.
+- **Not used from the handoff:** its rounded-value trajectory plot and its standalone LaTeX subsection, which duplicates Q5.
