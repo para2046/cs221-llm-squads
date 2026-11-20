@@ -11,6 +11,10 @@ We post-train that model in two ways and compare them:
 A planned third experiment gives one unit a secret incentive and measures collusion / free-riding.
 
 
+## Demo
+
+Real SC2 video with team messages: https://claude.ai/artifact/KBMsSf2gCHgWGRyRqchZzW
+
 ## Progress report (2026-11-20)
 
 `report/main.tex` / `report/main.pdf` (ICLR 2026 template). Results, all against the SC2 built-in AI at
