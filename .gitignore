@@ -8,6 +8,8 @@
 !/docs/
 !/report/
 !/paper/
+!/result_analysis/
+result_analysis/**/*.jsonl
 **/__pycache__/
 *.pyc
 .env

@@ -1,0 +1,97 @@
+{
+ "attack": {
+  "or_per_sd": 3.05,
+  "z": 7.84,
+  "n": 728
+ },
+ "focus": {
+  "or_per_sd": 1.73,
+  "z": 5.86,
+  "n": 728
+ },
+ "targets_per_step": {
+  "or_per_sd": 0.61,
+  "z": -4.79,
+  "n": 728
+ },
+ "weakest": {
+  "or_per_sd": 1.73,
+  "z": 4.19,
+  "n": 728
+ },
+ "ready_noshoot": {
+  "or_per_sd": 0.71,
+  "z": -1.89,
+  "n": 728
+ },
+ "cd_ir_move": {
+  "or_per_sd": 0.63,
+  "z": -2.33,
+  "n": 728
+ },
+ "low_hp_move": {
+  "or_per_sd": 0.91,
+  "z": -0.68,
+  "n": 728
+ },
+ "stalker_kite": {
+  "or_per_sd": 1.33,
+  "z": 2.07,
+  "n": 606
+ },
+ "zealot_attack": {
+  "or_per_sd": 2.26,
+  "z": 3.45,
+  "n": 674
+ },
+ "target_switch": {
+  "or_per_sd": 0.61,
+  "z": -3.86,
+  "n": 728
+ },
+ "sync_at_contact": {
+  "or_per_sd": 1.58,
+  "z": 5.45,
+  "n": 728
+ },
+ "cohesion_pre": {
+  "or_per_sd": 0.54,
+  "z": -6.61,
+  "n": 728
+ },
+ "cohesion_fight": {
+  "or_per_sd": 0.53,
+  "z": -5.73,
+  "n": 728
+ },
+ "spawn_spread": {
+  "or_per_sd": 0.55,
+  "z": -6.43,
+  "n": 728
+ },
+ "regroup": {
+  "or_per_sd": 1.05,
+  "z": 0.67,
+  "n": 728
+ },
+ "contact_step": {
+  "or_per_sd": 0.92,
+  "z": -0.98,
+  "n": 728
+ },
+ "first_blood": {
+  "or_per_sd": 2.53,
+  "z": 9.96,
+  "n": 728
+ },
+ "colossi": {
+  "or_per_sd": 1.19,
+  "z": 2.16,
+  "n": 728
+ },
+ "zealots": {
+  "or_per_sd": 1.22,
+  "z": 2.33,
+  "n": 728
+ }
+}

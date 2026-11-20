@@ -1,0 +1,120 @@
+maps: new, 64 shared; models: ['SFT', 'MAPPO', '31B']; behaviour phase: after
+feature                     SFT      MAPPO        31B
+won                       0.531      0.609      0.703
+first_blood               0.469      0.453      0.531
+attack                    0.875      0.841      0.830
+focus                     0.386      0.459      0.474
+targets_per_step          1.830      1.735      1.699
+weakest                   0.917      0.920      0.943
+target_switch             0.017      0.019      0.024
+ready_noshoot             0.006      0.006      0.011
+cd_ir_move                0.011      0.006      0.041
+low_hp_move               0.021      0.015      0.084
+low_hp_away               0.232      0.130      0.416
+move_away                 0.135      0.068      0.235
+stop_with_enemy           0.000      0.000      0.004
+stalker_kite              0.077      0.026      0.266
+zealot_attack             0.999      1.000      0.998
+sync_at_contact           0.963      0.952      0.949
+cohesion_pre              3.399      2.964      3.143
+cohesion_fight            3.076      2.676      2.929
+regroup                  -0.002      0.000      0.000
+alone_with_enemy          0.122      0.085      0.083
+invalid                   0.000      0.000      0.006
+msg_rate                  0.725      0.810      0.788
+msg_named                 0.685      0.783      0.743
+
+-- SFT -> MAPPO: paired change, 95% bootstrap CI over maps (* = CI excludes 0)
+  won                  +0.078  [-0.094, +0.266]  
+  first_blood          -0.016  [-0.172, +0.156]  
+  attack               -0.034  [-0.065, -0.000] *
+  focus                +0.073  [-0.013, +0.157]  
+  targets_per_step     -0.095  [-0.250, +0.065]  
+  weakest              +0.003  [-0.027, +0.037]  
+  target_switch        +0.003  [-0.005, +0.011]  
+  ready_noshoot        +0.000  [-0.008, +0.009]  
+  cd_ir_move           -0.005  [-0.011, +0.000]  
+  low_hp_move          -0.006  [-0.019, +0.006]  
+  low_hp_away          -0.102  [-0.220, +0.005]  
+  move_away            -0.068  [-0.133, -0.014] *
+  stop_with_enemy      +0.000  [+0.000, +0.000]  
+  stalker_kite         -0.052  [-0.121, -0.011] *
+  zealot_attack        +0.001  [+0.000, +0.002]  
+  sync_at_contact      -0.012  [-0.051, +0.029]  
+  cohesion_pre         -0.435  [-1.019, +0.132]  
+  cohesion_fight       -0.400  [-0.947, +0.117]  
+  regroup              +0.002  [+0.000, +0.007]  
+  alone_with_enemy     -0.037  [-0.075, +0.004]  
+  invalid              -0.000  [-0.001, +0.000]  
+  msg_rate             +0.085  [+0.041, +0.134] *
+  msg_named            +0.098  [+0.050, +0.150] *
+
+-- MAPPO -> 31B: paired change, 95% bootstrap CI over maps (* = CI excludes 0)
+  won                  +0.094  [-0.062, +0.250]  
+  first_blood          +0.078  [-0.078, +0.234]  
+  attack               -0.011  [-0.041, +0.020]  
+  focus                +0.015  [-0.081, +0.106]  
+  targets_per_step     -0.036  [-0.192, +0.115]  
+  weakest              +0.023  [-0.005, +0.051]  
+  target_switch        +0.005  [-0.003, +0.013]  
+  ready_noshoot        +0.004  [-0.007, +0.017]  
+  cd_ir_move           +0.035  [+0.024, +0.049] *
+  low_hp_move          +0.070  [+0.046, +0.097] *
+  low_hp_away          +0.285  [+0.164, +0.417] *
+  move_away            +0.168  [+0.109, +0.232] *
+  stop_with_enemy      +0.004  [+0.000, +0.010]  
+  stalker_kite         +0.240  [+0.133, +0.326] *
+  zealot_attack        -0.002  [-0.005, +0.000]  
+  sync_at_contact      -0.002  [-0.039, +0.037]  
+  cohesion_pre         +0.180  [-0.279, +0.633]  
+  cohesion_fight       +0.253  [-0.167, +0.656]  
+  regroup              +0.000  [+0.000, +0.000]  
+  alone_with_enemy     -0.003  [-0.039, +0.035]  
+  invalid              +0.006  [+0.002, +0.013] *
+  msg_rate             -0.022  [-0.049, +0.006]  
+  msg_named            -0.039  [-0.070, -0.008] *
+
+-- win model: 951 games, 11 players (fixed effects); OR per +1 SD
+  focus                OR  1.61  z   3.41
+  weakest              OR  1.17  z   1.05
+  target_switch        OR  0.74  z  -1.68
+  cd_ir_move           OR  0.76  z  -0.68
+  low_hp_move          OR  1.29  z   0.98
+  move_away            OR  0.54  z  -3.95
+  sync_at_contact      OR  1.55  z   3.05
+  cohesion_fight       OR  6.56  z   7.31
+  alone_with_enemy     OR  0.02  z -12.32
+  invalid              OR  1.14  z   1.12
+  spawn_spread         OR  0.81  z  -1.17
+  colossi              OR  0.99  z  -0.08
+  zealots              OR  1.57  z   4.24
+
+-- SFT -> MAPPO: win 0.531 -> 0.609, log-odds change +0.32; explained by behaviour features +0.65
+  alone_with_enemy     +0.73
+  cohesion_fight       -0.31
+  move_away            +0.17
+  focus                +0.11
+  sync_at_contact      -0.03
+  target_switch        -0.01
+  low_hp_move          -0.01
+  cd_ir_move           +0.01
+  weakest              +0.00
+  invalid              -0.00
+  spawn_spread         -0.00
+  colossi              -0.00
+  zealots              +0.00
+
+-- MAPPO -> 31B: win 0.609 -> 0.703, log-odds change +0.42; explained by behaviour features +0.04
+  move_away            -0.41
+  cohesion_fight       +0.20
+  invalid              +0.14
+  low_hp_move          +0.10
+  alone_with_enemy     +0.05
+  cd_ir_move           -0.05
+  weakest              +0.03
+  target_switch        -0.03
+  focus                +0.02
+  spawn_spread         -0.01
+  sync_at_contact      -0.01
+  colossi              -0.00
+  zealots              +0.00
