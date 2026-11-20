@@ -22,3 +22,6 @@ report/*.blg
 report/*.out
 report/tpl/
 report/*backup*
+
+# progress report kept local only (2026-11-20)
+/report/

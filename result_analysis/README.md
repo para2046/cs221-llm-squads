@@ -1,7 +1,8 @@
 # Game logs behind the progress report
 
-The raw game logs used for the win rates and the behaviour analysis in `report/main.tex` (Q2–Q5).
-The analysis scripts are in `../scripts/`, their outputs in `../report/analysis/`.
+The raw game logs used for the win rates and the behaviour analysis in the CS221 progress report (Q2–Q5; the report
+itself is not in this repository). The analysis scripts are in `../scripts/`; the commands below write their outputs
+to a local `report/` folder.
 
 ## Setting
 
@@ -38,7 +39,7 @@ Run `gunzip -k result_analysis/logs/*.gz result_analysis/logs/*/*.gz` first.
 ## Reproducing the report's analysis
 
 ```bash
-python scripts/same_maps_table.py                   # Figure 1 win rates (also report/slides_src/same_maps.json)
+python scripts/same_maps_table.py                   # Figure 1 win rates
 python scripts/gain_analysis.py ...                 # who loses a unit first, wins after the first loss
 python scripts/behavior_shift.py --maps new --phase opening   # behaviour in the opening only
 .venv-smac/bin/python scripts/action_msg_shift.py --json report/analysis/action_msg_shift.json --fig-dir report

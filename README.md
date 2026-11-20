@@ -17,7 +17,7 @@ Real SC2 video with team messages: https://claude.ai/artifact/KBMsSf2gCHgWGRyRqc
 
 ## Progress report (2026-11-20)
 
-`report/main.tex` / `report/main.pdf` (ICLR 2026 template). Results, all against the SC2 built-in AI at
+CS221 progress report (not included in this repository). Results, all against the SC2 built-in AI at
 difficulty 7, on the same 64 test maps (seeds 200000–200063, never used in training):
 
 | Model | Win |
@@ -58,7 +58,6 @@ smac_llm/train.py        --mode bc | online | eval   (LoRA on Gemma 4, one GPU)
 smac_llm/serve_gemma.sh  vLLM server for fast evaluation
 scripts/collect.sh       parallel game collection inside the CPU Slurm job
 scripts/summarize.py     win rate / return / kills / illegal-order rate with 95% CIs
-report/                  progress report (ICLR 2026 template)
 ```
 
 ## Setup
