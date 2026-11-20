@@ -181,3 +181,47 @@ them fighting and focuses fire.
     mainly on split maps);
   - say–do consistency (a unit that names a target attacks it);
   - per-game style clusters.
+
+## Action and message shift, and the MAPPO training trajectory (`scripts/action_msg_shift.py`)
+
+Outputs: `outputs/action_msg_shift.txt|json`, figures `outputs/fig_actions.pdf`, `fig_messages.pdf`,
+`fig_mappo_trajectory.pdf`. Training logs: `logs/mappo_training/`. These hold all 23 rounds of MAPPO training games
+(16 per round, T=1.0, random maps) and the evaluation every 2 rounds (16 fixed dev maps, T=0.7). Eval round 0 is the
+SFT policy.
+
+Every decision is put into a **situation**: no enemy / enemy visible but none in range / in range with the weapon
+ready / in range while reloading / low HP (<35%) with an enemy visible. Within each situation we take the
+**action class**: attack weakest, attack other, move toward, move away, move (no enemy), stop, invalid.
+Messages get one **type** each, using the same regexes as `msg_taxonomy.py`. **Say–do** is the share of messages
+naming an enemy where the unit itself attacks that enemy in the same reply.
+
+Key numbers (64 test maps):
+
+| | untrained | SFT | MAPPO | 31B |
+|---|---|---|---|---|
+| Enemy far, moves toward it | 54% | 97% | 96% | 97% |
+| Enemy far, moves away | 20% | 2.5% | 4.0% | 2.0% |
+| Enemy far, invalid | 26% | 0.1% | 0% | 0.8% |
+| No enemy, stops | 32% | 0.9% | 0.1% | 0.2% |
+| Low HP, attacks weakest | 65% | 80% | 82% | 74% |
+| Low HP, moves away | 9.0% | 2.2% | 1.4% | 7.4% |
+| No message | 77% | 19% | 14% | 14% |
+| Message names a target | 8% | 63% | 64% | 60% |
+| Kill confirmation | 0.2% | 8.8% | 12.7% | 11.5% |
+| Say–do | 12% | 80% | 79% | 77% |
+| Action JSD from the previous model, within situation | – | 0.072 bits | 0.002 | 0.014 |
+| Message JSD from the previous model | – | 0.375 bits | 0.009 | 0.016 |
+
+**Correction to the earlier "MAPPO retreats less" finding.** `low_hp_away` in `behavior_shift` is the share of
+**moves** that go away. Low-HP units rarely move: 80% of their decisions are attacks. As a share of all low-HP
+decisions, moving away is 2.2% (SFT) vs 1.4% (MAPPO), and the CI includes 0. MAPPO's action distribution is almost
+identical to SFT's (JSD 0.002 bits).
+
+**MAPPO training trajectory** (slope per 10 rounds, 95% bootstrap CI):
+
+- Messages change steadily:
+  - no-message share 19% → 12% (−3.7 points per 10 rounds, significant);
+  - kill confirmations 9% → 13% (+2.1, significant);
+  - named targets +1.6 (significant).
+- Action rates within each situation show no significant trend.
+- The training-game win rate shows no trend (16 games per round, ±12 points of noise).
