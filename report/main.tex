@@ -22,311 +22,232 @@ Stanford University \\
 \maketitle
 
 \section{Introduction}
-Teams of LLM agents are increasingly asked to act together while each sees only part of the world.
-We study the smallest such setting that still needs real-time coordination: a StarCraft~II squad in
-which \emph{every unit is a separate copy of a language model} that reads a text description of what
-its own unit sees and returns one order per step. We ask: (Q1) Does a communication channel between
-the copies help, and does the answer depend on model size? (Q2) Does a short per-unit memory of one's
-own recent actions and their outcomes help? (Q3) Can a small open model (Gemma~4 E4B) learn to play
-from a larger one (Gemma~4 31B)? (Q4) Can multi-agent RL (MAPPO) against the game's AI improve
-it further? (Q5) Where do the gains come from: which behaviours change? All conditions share one
-system prompt that states only the game rules: it contains no tactics, so any coordination we observe
-(e.g.\ focus fire) is produced by the model itself.
+We study a StarCraft~II squad in which \emph{every unit is a separate copy of a language model} that reads
+a text description of what its own unit sees and returns one order per step. We ask: (Q1) Does a
+communication channel between the copies help, and does it depend on model size? (Q2) Does a short
+per-unit memory of recent actions help? (Q3) Can a small open model (Gemma~4 E4B) learn to play from a
+larger one (Gemma~4 31B)? (Q4) Can multi-agent RL (MAPPO) improve it further? (Q5) Which behaviours
+change? The shared system prompt states only the game rules, with no tactics, so any coordination we
+observe (e.g.\ focus fire) comes from the model itself.
 
 \section{Literature Review}
-\paragraph{LLMs in StarCraft.} TextStarCraft \citep{ma2023textsc2} and LLM-PySC2 \citep{llmpysc2}
-put a single LLM in charge of a full game (macro, or many units through one prompt); both report that
-LLMs struggle with fine-grained unit control. HLSMAC \citep{hlsmac2025} moves SMAC-style scenarios
-to high-level strategy to suit LLMs. COMPASS \citep{li2025compass} runs decentralised VLM agents with
-code skills and a structured communication protocol on SMACv2 and reaches 57\% on Protoss 5v5; its
-protocol is close to our C1 channel, but it uses demonstrations and a skill library and does not
-ablate the channel, and its observations and controller differ from ours, so it is context rather
-than a controlled baseline. Closest to us is SMAC-Talk \citep{smactalk2026}, a natural-language
-extension of SMAC with decentralised LLM control and a language channel. We differ in three ways: we
-use the procedurally generated SMACv2 \citep{ellis2023smacv2} (new unit mix and spawn each game);
-we isolate the channel with a one-factor design (no comm / state reports / reports + free text)
-evaluated on fixed scenario seeds; and we post-train the small model, first by imitation and then by
-multi-agent RL. Classic MARL on SMAC \citep{samvelyan2019smac} (QMIX \citep{rashid2018qmix}, MAPPO
-\citep{yu2022mappo}) needs millions of steps and yields uninterpretable messages; SMAC-Hard
-\citep{deng2024smachard} shows it overfits the built-in opponent, a caveat that also applies to us.
-Our policy is a pretrained LLM with readable messages, trained on a few hundred games.
-\paragraph{Multi-agent RL for LLMs.} MAPoRL \citep{park2025maporl}, MAGRPO \citep{magrpo2025},
-Stronger-MAS/AT-GRPO \citep{strongermas2025} and MARFT \citep{liao2025marft} train several LLM agents
-with a team reward and group-relative advantages \citep{shao2024grpo} on reasoning or coding tasks;
-AT-GRPO shows that groups must compare rollouts of the \emph{same} agent and turn. SPIRAL
-\citep{liu2025spiral} uses zero-sum self-play between copies of one LLM. We use a centralised critic as in MAPPO, in a real-time,
-partially observable game with 5 concurrent agents and long episodes, where credit assignment is much
-harder. \citet{hasan2026grpo} found that naive GRPO did not produce coordination in Dining
-Philosophers.
-LLM-Coordination \citep{agashe2023llmcoord} evaluates prompted LLMs on cooperative games.
-\paragraph{Collusion and incentives.} LLM agents can collude
-\citep{motwani2024secret,shi2026emergent,nakamura2026colosseum} and free-ride
-\citep{piedrahita2025corrupted}; counterfactual credit \citep{foerster2018coma,li2026ccpo} is the
-principled alternative to our heuristic per-unit credit.
+\textbf{LLMs in StarCraft.} TextStarCraft \citep{ma2023textsc2} and LLM-PySC2 \citep{llmpysc2} give one
+LLM the whole game and find fine-grained unit control hard; HLSMAC \citep{hlsmac2025} moves to
+high-level strategy instead. COMPASS \citep{li2025compass} runs decentralised VLM agents with code
+skills and a structured protocol on SMACv2 (57\% on Protoss 5v5); its protocol resembles our C1, but it
+relies on demonstrations and a skill library and does not ablate the channel. SMAC-Talk
+\citep{smactalk2026} is closest: decentralised LLM control of SMAC with a language channel. We differ by
+using procedurally generated SMACv2 \citep{ellis2023smacv2}, isolating the channel with a one-factor
+design on fixed seeds, and post-training the small model. Classic MARL on SMAC
+\citep{samvelyan2019smac,rashid2018qmix,yu2022mappo} needs millions of steps, produces no readable
+messages and overfits the built-in opponent \citep{deng2024smachard}; our policy is a pretrained LLM
+trained on a few hundred games, so the approaches are complementary: we reuse MAPPO's centralised
+critic, but on top of an LLM actor.
+\textbf{Multi-agent RL for LLMs.} MAPoRL \citep{park2025maporl}, MAGRPO \citep{magrpo2025}, AT-GRPO
+\citep{strongermas2025} and MARFT \citep{liao2025marft} train several LLM agents with a team reward and
+group-relative advantages \citep{shao2024grpo} on reasoning or coding tasks with a few turns; we face
+5 concurrent agents, partial observability and $\sim$60-step episodes, where credit assignment is
+harder, which is why we use a learned critic. \citet{hasan2026grpo} found that naive GRPO did not
+produce coordination. Counterfactual credit \citep{foerster2018coma,li2026ccpo} is the principled
+alternative to our heuristic per-unit credit; work on LLM collusion
+\citep{motwani2024secret,nakamura2026colosseum} motivates our planned incentive experiments.
 
 \section{Dataset / Environment}
-There is no fixed dataset: data are games generated by the environment. We use SMACv2
-\texttt{10gen\_protoss}, 5 vs 5, against the built-in AI (difficulty 7). Each scenario samples a unit
-mix from \{zealot, stalker, colossus\} (identical for both teams) and a start type: \emph{grouped}
-(our five units around the map centre, enemies around them) or \emph{split}. One step is 0.5~game
-seconds and games end at 200 steps (draw). A scenario seed fixes the unit mix and the start type
-(on grouped maps our formation is also fixed; enemy positions still vary between runs), so we pair
-games by seed. We use two seed sets: \textbf{development} seeds 100000--100063, used while building
-the system (channel, history and early training comparisons), and \textbf{test} seeds
-200000--200063 (35 grouped, 29 split), never used for training or model selection, on which every
-model in the final comparison plays the same 64 maps. The 31B channel ablation (40 games per cell) was
-run before seeding and is compared unpaired. We logged over 1{,}500 games (every unit's prompt,
-reply and the game state per step; $\approx$300 model calls per game). Preprocessing is the text
-interface: each unit's observation is rendered as text (own state, visible teammates and enemies
-with distance, hp, shield, ``[in range]''), followed by the list of legal orders. Unparseable or
-illegal replies are replaced by \texttt{stop} and counted.
+There is no fixed dataset: data are games. We use SMACv2 \texttt{10gen\_protoss}, 5 vs 5, against the
+built-in AI (difficulty 7). Each scenario samples a unit mix from \{zealot, stalker, colossus\} (same
+for both teams) and a \emph{grouped} or \emph{split} start; a step is 0.5 game seconds, games end at
+200 steps. A seed fixes the unit mix and start type, so we pair games by seed: \textbf{development}
+seeds 100000--100063 (used while building the system) and \textbf{test} seeds 200000--200063 (35
+grouped, 29 split), never used for training or model selection. We logged over 1{,}500 games (every
+prompt and reply; $\approx$300 model calls per game). Preprocessing is the text interface: each unit's
+observation is rendered as text, followed by its legal orders; illegal or unparseable replies become
+\texttt{stop} and are counted.
 
 \section{Baselines}
-(i) \textbf{Random} legal orders: 0\% wins (20 games). (ii) \textbf{Rule bots} with the same local
-vision as the LLM units: \emph{focus} (every unit attacks the weakest enemy in range, otherwise moves
-toward the nearest seen enemy) wins 50\%; \emph{kite} (focus, plus stalkers step back from zealots
-while reloading) 52.5\% (40 games each). (iii) \textbf{Untrained Gemma~4 E4B} (C2): 21.9\% on the test seeds
-(17.2\% on the development seeds). (iv) \textbf{Larger models, evaluation only}, on the 64 test seeds: Gemma~4 31B
-(our teacher) 70.3\%, GPT-5.6 Luna 64.1\%, Gemini~3.5 Flash-Lite 53.1\%. Outputs of closed models are
-never used as training data.
+\textbf{Random} legal orders: 0\% (20 games). \textbf{Rule bots} with the same local vision:
+\emph{focus} (attack the weakest enemy in range, else move toward the nearest) 50\%; \emph{kite}
+(focus, plus stalkers step back from zealots while reloading) 52.5\% (40 games each).
+\textbf{Untrained E4B} (C2): 21.9\% on the test seeds. \textbf{Larger models} (evaluation only, test
+seeds): Gemma~4 31B 70.3\%, GPT-5.6 Luna 64.1\%, Gemini~3.5 Flash-Lite 53.1\%. Closed-model outputs are
+never training data.
 
 \section{Main Approach}
-\paragraph{Agents and prompt.} Each unit $u$ at step $t$ receives the shared system prompt (rules,
-unit statistics, ``you decide your own tactics''), its observation $o_t^u$, optionally team
-information $c_t$, and its history $h_t^u$, and replies with JSON. A real (abridged) prompt:
+\textbf{Agents.} At step $t$, unit $u$ receives the system prompt (rules, unit statistics), its
+observation $o_t^u$, optional team information $c_t$ and its history $h_t^u$, and replies in JSON. An
+abridged real prompt:
 {\scriptsize
 \begin{verbatim}
 Step 14. You are agent a0, a stalker at (14.8, 16.0), hp 62/80, shield 0/80, cooldown 16, ...
 Visible enemies:  e3 zealot at (13.1, 17.0), dist 2.0, hp 40/100, shield 0/50 [in range]
 Team reports: {"from":"a3","type":"zealot","hp":100,"sees":[...]} ...   (C1/C2 only)
-Your last steps: step 12: move_west -> you 150 -> 150
-                 step 13: attack_e3 -> e3 88 -> 40; you 150 -> 142
-Team score so far: 6.3 / 20
+Your last steps: step 13: attack_e3 -> e3 88 -> 40; you 150 -> 142
 Legal actions: stop, move_north, move_south, move_east, move_west, attack_e3
 \end{verbatim}}
-\noindent Reply in C2: \texttt{\{"action": "attack\_e3", "msg": "finishing e3"\}}. The five replies form
-the joint action. \textbf{Channels}: C0 none; C1 every teammate's state and visible enemies as JSON;
-C2 = C1 + a free message of $\le$8 words shown to teammates next step (no suggested content).
-\textbf{History}: the environment writes, per unit, its last 5 actions with the target's and its own
-hp+shield before$\to$after, and the team's SMAC score; it is game facts only. All post-training uses C2
-with history.
+\noindent Reply (C2): \texttt{\{"action": "attack\_e3", "msg": "finishing e3"\}}; the five replies form
+the joint action. \textbf{Channels}: C0 none; C1 teammates' states and visible enemies; C2 = C1 + a free
+message of $\le$8 words shown to teammates next step. \textbf{History}: each unit's last 5 actions with
+hp+shield before$\to$after (game facts only). Post-training uses C2 with history.
 
-\paragraph{Reward (training only, never shown to the agents).} Let $H_t$ be the difference between
-the two teams' remaining hp+shield (each normalised by its initial total) and $L_t$ the difference in
-alive fractions. The team reward is $r_t = 0.5\,\Delta H_t + 0.25\,\Delta L_t$, plus $+2$ / $-2$ /
-$0$ at a win / loss / draw; there is no bonus for focus fire, movement or talking. Per-unit credit
-$r_t^u = 0.5\,(c_t^u - \bar c_t)$, where $c_t^u$ is the damage unit $u$ dealt (split among the units
-attacking a target) minus the damage it received, so $\sum_u r_t^u = 0$. This is a heuristic
-attribution, not a counterfactual estimate: a unit that absorbs damage to protect teammates is
-penalised. The dense term is a difference of potentials $\Phi(s_{t+1})-\Phi(s_t)$; policy invariance
-\citep{ng1999shaping} requires $\gamma\Phi(s_{t+1})-\Phi(s_t)$, so with $\gamma=0.99$ we do not claim
-the shaping leaves the optimal policy unchanged.
+\textbf{Reward (training only).} With $H_t$ the difference in the teams' remaining hp+shield and $L_t$
+in alive fractions (each normalised), $r_t = 0.5\,\Delta H_t + 0.25\,\Delta L_t$, plus $\pm2$ for a
+win/loss; nothing rewards focus fire or talking. Per-unit credit $r_t^u = 0.5\,(c_t^u-\bar c_t)$, with
+$c_t^u$ the damage $u$ dealt minus received, so $\sum_u r_t^u=0$; this heuristic penalises a unit that
+tanks for others. As we use $\Phi(s_{t+1})-\Phi(s_t)$ rather than $\gamma\Phi(s_{t+1})-\Phi(s_t)$, we
+do not claim policy invariance \citep{ng1999shaping}.
 
-\paragraph{Learning from 31B (supervised).} We log 208 Gemma~4 31B games in C2 (44{,}460 decisions,
-60.7\% won) and fine-tune E4B (LoRA rank 16) on the 31B's replies (action and message) given exactly
-the prompt E4B sees. We planned advantage-weighted regression \citep{peng2019awr}, but with a
-minibatch of one the normalised weights cancel, so the method actually run is \emph{reward-filtered
-behaviour cloning}: we drop decisions whose return-to-go is far below the mean at that step (35{,}038
-kept, 81\% from won games) and train on 20{,}000 of them (2{,}500 updates, lr $10^{-4}$). We call this
-model \textbf{SFT on 31B games}.
+\textbf{SFT on 31B games.} From 208 Gemma~4 31B games in C2 (44{,}460 decisions, 60.7\% won) we drop
+decisions whose return-to-go is far below the mean at that step and fine-tune E4B (LoRA rank 16) on
+20{,}000 of the 35{,}038 kept (2{,}500 updates, lr $10^{-4}$) to reproduce the 31B's action and message
+given the same prompt (reward-filtered behaviour cloning; the planned AWR weights \citep{peng2019awr}
+cancel with a minibatch of one).
 
-\paragraph{Multi-agent RL from the SFT model.} All five units share one LoRA actor (the SFT adapter)
-that is trained on-policy against the built-in AI. Each round plays 16 new games (temperature 1.0)
-and updates the actor once with a token-level PPO-clip objective \citep{schulman2017ppo} (clip 0.2)
-on up to 1{,}024 sampled decisions, using the log-probabilities recorded at sampling time, plus a KL
-penalty (0.02) to the frozen SFT adapter and a penalty of 0.1 for invalid orders.
-\emph{MAPPO} \citep{yu2022mappo}: a centralised critic $V_\phi(s_t,u)$ (an MLP on the 130-dimensional
-SMACv2 global state plus a one-hot unit id; the actor never sees this state) gives per-unit GAE
-\citep{schulman2015gae} advantages ($\gamma{=}0.99$, $\lambda{=}0.95$); the first round trains only the
-critic. Compared with the original MAPPO, our
-actor is an LLM starting from SFT, with a KL anchor and no entropy bonus, one PPO pass per round (not
-5--15), no PopArt or value clipping, and $\approx$22k environment steps instead of millions.
+\textbf{MAPPO from SFT.} All five units share one LoRA actor initialised from SFT. Each round plays 16
+games against the built-in AI (temperature 1.0) and makes one token-level PPO-clip update
+\citep{schulman2017ppo} (clip 0.2) on up to 1{,}024 decisions, with a KL penalty (0.02) to the frozen
+SFT adapter and a 0.1 penalty for invalid orders. A centralised critic $V_\phi(s_t,u)$ (MLP on the
+130-dimensional SMACv2 global state plus unit id; the actor never sees it) gives per-unit GAE
+advantages \citep{schulman2015gae} ($\gamma{=}0.99$, $\lambda{=}0.95$) \citep{yu2022mappo}. Unlike the
+original MAPPO we use one PPO pass per round, no entropy bonus and $\approx$22k environment steps.
 
 \section{Evaluation Metrics}
-\textbf{Win rate} against the built-in AI; models are compared on the same seeds by the number of maps
-\emph{only one of them} won ($b$ vs $c$; exact McNemar test), and we report 95\% paired bootstrap
-intervals over maps. \textbf{Actions by situation.} Each decision is placed in the situation the unit
-is in: no enemy visible; enemy visible but out of range; in range and ready to fire; in range and
-reloading; low hp ($<$35\% hp+shield, enemy visible). Within each situation we count the action:
-attack the weakest enemy in range, attack another enemy, move toward / away from the nearest enemy,
-stop, or an invalid order. Comparing models \emph{within} a situation keeps a model from looking
-different only because it spends more time in combat; we summarise the overall shift by the
-Jensen--Shannon divergence (JSD, bits) between the situation-weighted action distributions.
-\textbf{Messages} (C2) are sorted into types by keyword: none, names an enemy (``focusing e4''),
-a finish-off call (``finishing e2''), moving to support a teammate, regroup, retreat, kiting, movement,
-other. A manual audit of 25 random messages per type found the labels accurate except \emph{retreat}
-for 31B (78\% of its ``retreat'' messages really announce a retreat; the rest are e.g.\ ``low hp,
-attacking e1''); the category we first called ``kill'' turned out to be almost entirely (96--100\%)
-``finishing eX'' calls, not reports of a kill. \emph{Say--do} is the
-share of messages naming an enemy whose sender attacks that enemy in the same reply; the \emph{follow
-rate} $= P(a^{v}_{t+1}{=}\text{attack}_e \mid u \text{ named } e \text{ at } t,\ e \text{ in } v\text{'s
-range})$ is compared with chance, $\mathbb{E}[1/|\text{legal attacks}|]$. Per-game features
-(target switch, spread of the squad in the fight, wins after losing the first unit) complete the
-picture. To separate behaviour that \emph{causes} an advantage from behaviour that \emph{follows} from
-being ahead or behind, we also compute features on the \emph{opening} only (steps before either side
-loses a unit).
+\textbf{Win rate.} Models are compared on the same seeds by the maps \emph{only one of them} won ($b$ vs
+$c$; exact McNemar test), with 95\% paired bootstrap intervals over maps. \textbf{Actions by situation.}
+Each decision is placed in a situation (no enemy visible; enemy out of range; in range and ready; in
+range and reloading; low hp, $<$35\% hp+shield) and we compare $P(\text{action}\mid\text{situation})$,
+so that a model is not counted as different only because it spends more time in combat. The overall
+shift is the Jensen--Shannon divergence $\mathrm{JSD}=\sum_s w_s\,\mathrm{JS}(P_A(\cdot|s)\,\|\,P_B(\cdot|s))$
+(bits, $w_s$ = situation share). \textbf{Messages} are typed by keyword (none, names an enemy,
+finish-off call ``finishing e2'', support, regroup, retreat, kiting, movement); a manual audit of 25
+messages per type found them accurate except 31B's ``retreat'' (78\%). \emph{Say--do} is the share of
+messages naming enemy $e$ whose sender attacks $e$; the \emph{follow rate} is
+$P(a^{v}_{t+1}{=}\text{attack}_e \mid u \text{ named } e \text{ at } t,\ e \text{ in } v\text{'s range})$
+against chance $\mathbb{E}[1/|\text{legal attacks}|]$.
 
 \section{Results \& Analysis}
 \label{sec:results}
 \begin{figure}[t]
 \centering
-\includegraphics[width=\linewidth]{fig_same_maps.pdf}
-\vspace{-6mm}
-\caption{Win rate against the built-in AI (difficulty 7) on the same 64 test maps (seeds
-200000--200063), with 95\% Wilson intervals. Closed models are evaluation only.}
+\includegraphics[width=0.82\linewidth]{fig_same_maps.pdf}
+\vspace{-4mm}
+\caption{Win rate against the built-in AI (difficulty 7) on the same 64 test maps, with 95\% Wilson
+intervals. Closed models are evaluation only.}
 \label{fig:win}
+\vspace{-2mm}
 \end{figure}
 \begin{table}[t]
 \centering\footnotesize
-\caption{Channel and history ablations (development seeds for E4B; 31B: 40 unpaired games per cell).
-$b/c$: seeds won only by the first / second condition.}
+\caption{Channel and history ablations (E4B: 64 development seeds, $b/c$ = maps won only by the
+first/second condition; 31B: 40 unpaired games per cell).}
 \label{tab:main}
-\begin{tabular}{llrrr}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrr}
 \toprule
-Model & Comparison & win (\%) & $b/c$ & $p$ \\
+31B (unpaired) & win \% & $p$ \\
 \midrule
-31B & C1 vs C0 & 50 vs 25 & -- & 0.037 \\
-31B & C2 vs C0 & 60 vs 25 & -- & 0.003 \\
-31B & C2 vs C1 & 60 vs 50 & -- & 0.50 \\
-E4B & C1 vs C0 & 18.8 vs 17.2 & 8/7 & 1.0 \\
-E4B & C2 vs C0 & 17.2 vs 17.2 & 7/7 & 1.0 \\
-E4B & C2 vs C2 no history & 17.2 vs 3.1 & 10/1 & 0.012 \\
+C1 vs C0 & 50 vs 25 & .037 \\
+C2 vs C0 & 60 vs 25 & .003 \\
+C2 vs C1 & 60 vs 50 & .50 \\
+\bottomrule
+\end{tabular}\hspace{6mm}
+\begin{tabular}{lrrr}
+\toprule
+E4B (paired) & win \% & $b/c$ & $p$ \\
+\midrule
+C1 vs C0 & 18.8 vs 17.2 & 8/7 & 1.0 \\
+C2 vs C0 & 17.2 vs 17.2 & 7/7 & 1.0 \\
+C2 vs no history & 17.2 vs 3.1 & 10/1 & .012 \\
 \bottomrule
 \end{tabular}
+\vspace{-2mm}
 \end{table}
-\paragraph{Q1: communication helps the large model only.} For Gemma~4 31B, sharing teammates' states
-doubles the win rate (25$\to$50\%) and adding free messages reaches 60\%; the C2--C1 step is not
-significant. Without any tactic in the prompt, 31B \emph{uses language for focus fire}: 83\% of its
-decisions carry a message, 85\% of messages name a target (``focusing e4'', ``finishing e1''), and a
-teammate that can hit the named enemy attacks it 70\% of the time vs 45\% by chance (an association:
-teammates may pick the same weak enemy independently). The untrained 4B gains nothing from either
-channel: its messages are mostly movement chatter (``moving towards action'').
-\paragraph{Q2: memory helps the small model, but less than first measured.} On the development seeds,
-removing the 5-step history dropped the untrained E4B from 17.2\% to 3.1\% (10 vs 1 maps won only by one
-side, $p{=}0.012$). On the 64 test seeds the drop is smaller, 21.9\% to 15.6\% (9 vs 5, $p{=}0.42$):
-the direction replicates but the size does not, so the first estimate was inflated by the seed set.
-Pooled over both sets (128 maps), history wins 19 maps the no-history model loses and loses 6
-($p{=}0.015$).
-\paragraph{Q3: learning from 31B works.} SFT on 31B games lifts E4B from 21.9\% to 53.1\% on the test
-seeds (25 vs 5 maps won only by one side, $p{<}0.001$; development seeds: 17.2\% to 53.1\%), where the 31B teacher still leads (70.3\%; 17 vs 6 maps, $p{=}0.03$). The trained model also
-adopts the teacher's language: messages rise from 23\% to 81\% of decisions and named targets from 40\%
-to 88\% of messages (test seeds).
-\paragraph{Q4: multi-agent RL on top of SFT (in progress).} Starting from SFT, MAPPO (23 rounds, 368 games) reaches 60.9\% on the test seeds vs 53.1\% for SFT (20 vs 15
-maps won only by one side; paired 95\% interval $-9$ to $+27$ points): a gain that is \emph{not yet
-established}. Diagnostics show the policy moves little per round (KL to SFT $\approx$0.005--0.01, PPO
-clip fraction $<$1\%), consistent with small, slow changes; Q5 shows the changes are mostly in messages. Gaps between models are mostly on split
-starts (SFT 34.5\%, MAPPO 48.3\%, 31B 58.6\%); on grouped starts all are 69--80\%.
+\textbf{Q1: communication helps the large model only} (Table~\ref{tab:main}). For 31B, teammates'
+states double the win rate (25$\to$50\%) and free messages reach 60\% (C2 vs C1 n.s.). With no tactic
+in the prompt, 31B \emph{uses language for focus fire}: 85\% of its messages name a target, and a
+teammate that can hit the named enemy attacks it 70\% of the time vs 45\% by chance (an association
+only). The untrained 4B gains nothing from either channel; its messages are movement chatter.
+
+\textbf{Q2: memory helps the small model, less than first measured.} Removing the 5-step history drops
+untrained E4B from 17.2\% to 3.1\% on the development seeds but only from 21.9\% to 15.6\% on the test
+seeds (9 vs 5, $p{=}0.42$); pooled over 128 maps, 19 vs 6 ($p{=}0.015$).
+
+\textbf{Q3: learning from 31B works.} SFT lifts E4B from 21.9\% to 53.1\% on the test seeds (25 vs 5,
+$p{<}0.001$); the 31B teacher still leads (70.3\%; 17 vs 6, $p{=}0.03$).
+
+\textbf{Q4: MAPPO, gain not yet established.} After 23 rounds (368 games) MAPPO reaches 60.9\% vs 53.1\%
+(20 vs 15; paired 95\% interval $-9$ to $+27$ points). The policy moves little (KL to SFT
+$\approx$0.005--0.01, clip fraction $<$1\%). Gaps are mostly on split starts (SFT 34.5\%, MAPPO 48.3\%,
+31B 58.6\%); on grouped starts all models win 69--80\%.
 
 \begin{table}[t]
 \centering\footnotesize
-\caption{Behaviour on the same 64 test maps (all decisions pooled; $\approx$13k per model). Action
-rows: share of decisions \emph{in that situation}. $\dagger$: the paired 95\% interval (bootstrap over
-maps) of the change from the column to its left excludes 0, both for pooled decisions and for per-game
-averages (the two agree within 1--2 points on every row).}
+\caption{Behaviour on the 64 test maps ($\approx$13k decisions per model). Actions: \% of decisions in
+that situation; messages: \% of all decisions. $\dagger$: paired 95\% interval of the change from the
+column on the left excludes 0 (pooled and per-game averages agree).}
 \label{tab:behav}
-\setlength{\tabcolsep}{4pt}
+\setlength{\tabcolsep}{3.5pt}
 \begin{tabular}{lrrrr}
 \toprule
  & untrained & SFT & MAPPO & 31B \\
 \midrule
-win (\%) & 21.9 & 53.1$^\dagger$ & 60.9 & 70.3 \\
 win after losing the first unit (\%) & 8 & 23 & 52 & -- \\
-\multicolumn{5}{l}{\emph{Actions (\% of decisions in the situation)}} \\
-enemy out of range: move toward & 54 & 97$^\dagger$ & 96 & 97 \\
-enemy out of range: move away & 20 & 2.5$^\dagger$ & 4.0 & 2.0$^\dagger$ \\
-enemy out of range: invalid order & 26 & 0.1$^\dagger$ & 0.0 & 0.8 \\
-no enemy visible: stop & 32 & 0.9 & 0.1 & 0.2 \\
-low hp: attack weakest & 65 & 80$^\dagger$ & 82 & 74$^\dagger$ \\
-low hp: move away & 9.0 & 2.2$^\dagger$ & 1.4 & 7.4$^\dagger$ \\
-reloading in range: move away & 0.5 & 0.2$^\dagger$ & 0.1 & 1.7$^\dagger$ \\
+enemy out of range: move toward / invalid & 54 / 26 & 97 / 0.1$^\dagger$ & 96 / 0.0 & 97 / 0.8 \\
+low hp: attack weakest / move away & 65 / 9.0 & 80 / 2.2$^\dagger$ & 82 / 1.4 & 74 / 7.4$^\dagger$ \\
 target switch (\% of attacks) & 13.8 & 2.1$^\dagger$ & 2.7 & 2.8 \\
-action JSD to the column on the left (bits) & -- & 0.072 & 0.002 & 0.014 \\
-\multicolumn{5}{l}{\emph{Messages (\% of decisions)}} \\
-no message & 77 & 19 & 14 & 14 \\
-names an enemy & 8.1 & 63$^\dagger$ & 64 & 60$^\dagger$ \\
-finish-off call (``finishing e2'') & 0.2 & 8.8$^\dagger$ & 12.7$^\dagger$ & 11.5$^\dagger$ \\
-movement & 8.6 & 3.9$^\dagger$ & 3.5 & 5.7$^\dagger$ \\
-retreat or kiting & 0.1 & 0.6$^\dagger$ & 0.3 & 3.0$^\dagger$ \\
+no message / names an enemy & 77 / 8 & 19 / 63$^\dagger$ & 14$^\dagger$ / 64 & 14 / 60$^\dagger$ \\
+finish-off call (``finishing e2'') & 0.2 & 8.8$^\dagger$ & 12.7$^\dagger$ & 11.5 \\
+retreat or kiting messages & 0.1 & 0.6$^\dagger$ & 0.3 & 3.0$^\dagger$ \\
 say--do (\% of named-enemy messages) & 12 & 80$^\dagger$ & 79 & 77 \\
-message JSD to the column on the left (bits) & -- & 0.375 & 0.009 & 0.016 \\
 \bottomrule
 \end{tabular}
+\vspace{-2mm}
 \end{table}
 \begin{figure}[t]
 \centering
-\includegraphics[width=\linewidth]{fig_actions.pdf}\\[-1mm]
 \includegraphics[width=\linewidth]{fig_shift_summary.pdf}
 \vspace{-6mm}
-\caption{Top: action mix in three situations on the 64 test maps. Bottom: (a) how much behaviour changed
-between consecutive models (Jensen--Shannon divergence of situation-conditioned actions and of message
-types); (b, c) MAPPO checkpoints evaluated every 2 rounds on the same 16 development maps
-(temperature 0.7; round 0 is SFT): silence falls and finish-off calls rise, while action rates and the
-win rate show no trend.}
+\caption{(a) Behaviour change between consecutive models (JSD of situation-conditioned actions and of
+message types). (b, c) MAPPO checkpoints every 2 rounds on the same 16 development maps (round 0 = SFT):
+silence falls and finish-off calls rise; actions and win rate show no trend.}
 \label{fig:shift}
+\vspace{-3mm}
 \end{figure}
-\paragraph{Q5: where do the gains come from?} (Table~\ref{tab:behav}, Figure~\ref{fig:shift}.)
-\emph{Untrained$\to$SFT: a new way of playing.} SFT does not clearly win the opening (the untrained
-model loses a unit first in 61\% of games, SFT in 47\%; the interval includes 0); it wins the fight
-that follows (after losing the first unit: 8\%$\to$23\% wins; after killing first: 45\%$\to$83\%).
-The action change is large (JSD 0.072 bits) and is concentrated in \emph{getting into the fight}:
-when an enemy is visible but out of range, the untrained model moves toward it only 54\% of the time;
-it walks away (20\%) or orders an attack it cannot make (26\% invalid), and with no enemy in sight it
-often stops (32\%). SFT moves in 97\% of the time. In combat it also switches targets less (14\%$\to$2\%
-of attacks) and, when damaged, keeps attacking the weakest enemy (65\%$\to$80\%). These differences are
-already present in the opening, before any unit dies, so they are a change of play, not a consequence
-of winning. The message change is larger still (JSD 0.375): the untrained model is mostly silent
-(77\%) and otherwise talks about movement, while SFT adopts the teacher's ``call a target, then hit
-it'' pattern: 63\% of decisions name an enemy and the sender attacks that enemy in 80\% of them
-(12\% untrained).
+\textbf{Q5: where do the gains come from?} \emph{Untrained$\to$SFT: a new way of playing}
+(Table~\ref{tab:behav}). Both models lose the first unit about equally often (61\% vs 47\%, n.s.); SFT
+wins the fight that follows. The action change (JSD 0.072 bits, Figure~\ref{fig:shift}a) is mostly in
+\emph{getting into the fight}: with an enemy out of range, the untrained model approaches only 54\% of
+the time and otherwise walks away or orders an impossible attack (26\% invalid); SFT approaches 97\%. SFT
+also switches targets less (14\%$\to$2\%) and, when damaged, keeps hitting the weakest enemy. These
+differences already appear before any unit dies, so they cause rather than follow the advantage. The
+message change is larger (JSD 0.375): from mostly silent to ``call a target, then hit it'' (say--do
+12\%$\to$80\%).
 
-\emph{SFT$\to$MAPPO: same actions, more talk.} Within every situation MAPPO acts almost exactly like
-SFT (action JSD 0.002 bits, 36 times smaller than the SFT step; Figure~\ref{fig:shift}a). Averaged per game, no action rate in
-Table~\ref{tab:behav} changes significantly; over pooled decisions only invalid orders (0.3\%$\to$0\%)
-do. Damaged units move away 2.2\% vs 1.4\% of the time (interval includes 0). MAPPO attacks on a
-slightly smaller share of all decisions (76\% vs 79\%), but only because it spends more decisions
-approaching (enemy not visible or out of range: 22\% vs 19\%), not because it attacks less in any
-given situation.
-\emph{An earlier version of this analysis reported that MAPPO ``retreats less'' (26\%$\to$14\%); that
-figure was the share of \emph{moves} that go away, and damaged units rarely move (about 80\% of their
-decisions are attacks), so over all low-hp decisions the difference is negligible.} What does change is
-the messages: finish-off calls (``finishing e2'') rise from 8.8\% to 12.7\% of decisions, messages
-mentioning an enemy from 72\% to 77\%, and silence falls from 19\% to 14\%. The rise in finish-off calls
-is not a side effect of MAPPO spending time in different states: it holds within each combat situation
-(in range and reloading 10.7\%$\to$15.3\%, low hp 12.9\%$\to$21.0\%; both intervals exclude 0). Training shows the same drift
-over time (slope per 10 rounds with 95\% bootstrap interval): in the training games ``no message'' falls by 3.7 points ($-5.0$ to $-2.6$), finish-off calls rise by 2.1
-($+1.5$ to $+2.7$) and named targets by 1.6 ($+0.2$ to $+3.3$), while no action rate shows a trend and
-the training win rate does not rise ($-3.9$ points per 10 rounds, $-9.8$ to $+2.2$). Training games use
-random maps and temperature 1.0, so we repeated this on the checkpoint evaluations made every 2 rounds
-on the same 16 development maps at temperature 0.7 (Figure~\ref{fig:shift}b,c): the result is the same (no message $-3.7$ per 10
-rounds, $-6.8$ to $-0.9$; finish-off calls $+2.4$, $+1.9$ to $+3.0$; no action trend; win rate
-flat). The reward contains nothing about messages, so this drift is a by-product of the update. A likely
-mechanism: our PPO loss gives every token of a reply the same advantage, the message tokens included,
-so message wording that happens to co-occur with above-average returns is reinforced together with the
-action. After SFT the action in each situation is already nearly deterministic (e.g.\ 97\% move
-toward an out-of-range enemy), while the message is free text with more room to move under the same
-KL budget. We have not isolated this (e.g.\ by masking message tokens out of the loss). Together with the small KL to SFT (Q4), this suggests MAPPO has not yet changed the
-strategy: the 53\%$\to$61\% difference, itself not significant, may be partly noise or come from
-changes too subtle for these categories (e.g.\ which enemy is ``weakest'' when several are close).
-Evaluating intermediate checkpoints on the 64 test maps is left for future work.
+\emph{SFT$\to$MAPPO: same actions, more talk.} Within every situation MAPPO acts like SFT (JSD 0.002);
+no action rate changes significantly per game. (An earlier analysis said MAPPO ``retreats less'',
+26\%$\to$14\%; that was the share of \emph{moves}, and damaged units rarely move: over all low-hp
+decisions it is 2.2\% vs 1.4\%, n.s.) What changes is messages: finish-off calls rise from 8.8\% to
+12.7\%, within every combat situation, and silence falls. The checkpoint evaluations show the same
+drift during training (Figure~\ref{fig:shift}b, c; per 10 rounds: no message $-3.7$ points, 95\%
+interval $-6.8$ to $-0.9$; finish-off $+2.4$, $+1.9$ to $+3.0$) with no trend in actions or wins. The
+reward ignores messages; a likely cause is that our PPO loss gives every reply token, message included,
+the same advantage, and after SFT the action is nearly deterministic while the free-text message has
+room to move. So MAPPO has not yet changed the strategy, and its 8-point gain may be partly noise.
 
-\emph{The student is still not the teacher.} 31B differs from both 4B models mainly in repositioning:
-damaged units move away 7.4\% of the time (MAPPO 1.4\%), reloading units step back 1.7\% (0.1\%), it
-keeps attacking the weakest less (74\% vs 82\% when damaged) and it talks about retreating and kiting
-more (3.0\% vs 0.3\% of decisions; about 2.6\% after removing mislabelled messages). SFT copied 31B's targeting and messages but not these rarer moves, which
-imitation learns poorly, and MAPPO did not recover them. These are correlations from logs; a causal
-test (removing teammates' messages at test time) is planned.
+\emph{Student vs teacher.} 31B repositions more: damaged units move away 7.4\% of the time (MAPPO
+1.4\%) and it talks about retreating or kiting 10 times as often. Imitation copied 31B's targeting and
+language but not these rarer moves, and MAPPO did not recover them.
 
 \section{Next Steps}
-(1) Confirm the RL gain: more MAPPO rounds with larger updates (running) and more test maps (a 10-point gap needs $\sim$300 paired maps for a clear answer).
-(2) Causal checks of coordination: drop or shuffle teammates' messages at test time. (3) Cross-game
-memory: before a game, agents read a short log of the previous game on the same seed. (4)
-Individual-vs-team incentives: give one unit a secret reward and measure free-riding and collusion.
+(1) Confirm the RL gain with more rounds, larger updates and more test maps (a 10-point gap needs
+$\sim$300 paired maps), and evaluate intermediate checkpoints on the test maps. (2) Causal tests of
+communication: drop or shuffle teammates' messages at test time; mask message tokens out of the PPO
+loss. (3) Cross-game memory: agents read a log of the previous game on the same seed. (4) Give one unit
+a secret individual reward and measure free-riding and collusion.
 
 \section{Code}
-\url{https://github.com/para2046/cs221-llm-squads}: \texttt{smac\_llm/} (text interface, rewards in
-\texttt{game.py}, environment server, SFT in \texttt{train.py}, MAPPO in \texttt{mappo.py}),
-\texttt{scripts/} (evaluation and behaviour analysis: \texttt{same\_maps\_table.py},
-\texttt{behavior\_shift.py}, \texttt{gain\_analysis.py}).
+\url{https://github.com/para2046/cs221-llm-squads} (\texttt{smac\_llm/}: text interface, reward,
+environment server, SFT in \texttt{train.py}, MAPPO in \texttt{mappo.py}; \texttt{scripts/}: evaluation
+and behaviour analysis). Demo (real SC2 game with the units' messages):
+\url{https://claude.ai/artifact/KBMsSf2gCHgWGRyRqchZzW}.
 
 \section*{AI-Use Disclosure Statement}
 We used Claude Code (Anthropic, Claude Opus 5.5) to search and summarise related work, write the
