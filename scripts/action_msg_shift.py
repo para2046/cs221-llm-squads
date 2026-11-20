@@ -304,7 +304,7 @@ def figs(out, d):
     bottom = [0] * len(names)
     for mc in MC:
         v = [100 * out["test"][n]["msg"][mc] for n in names]
-        ax.bar(names, v, bottom=bottom, color=MC[mc], label=mc.replace("_", " "), width=0.7)
+        ax.bar(names, v, bottom=bottom, color=MC[mc], label={"kill": "finish-off call"}.get(mc, mc.replace("_", " ")), width=0.7)
         bottom = [b + x for b, x in zip(bottom, v)]
     ax.set_ylabel("% of decisions with this message", fontsize=8); ax.tick_params(labelsize=7.5)
     for sp in ("top", "right"):
@@ -325,7 +325,7 @@ def figs(out, d):
     axes[0].plot([int(i) for i in its], sm(wins), color="black", lw=1.2, ls="--", label="win rate (train games)")
     axes[0].set_xlabel("MAPPO round", fontsize=8); axes[0].set_ylabel("%", fontsize=8)
     axes[0].legend(fontsize=6.3, frameon=False, loc="center left", bbox_to_anchor=(0.02, 0.3)); axes[0].tick_params(labelsize=7.5)
-    for k, lab, c in [(("msg", None, "target_named"), "named target", "#1F3A5F"), (("msg", None, "kill"), "kill", "#4E9A6B"),
+    for k, lab, c in [(("msg", None, "target_named"), "named target", "#1F3A5F"), (("msg", None, "kill"), "finish-off call", "#4E9A6B"),
                       (("msg", None, "backup"), "backup", "#8E6FB5"), (("msg", None, "movement"), "movement", "#888888"),
                       (("msg", None, "none"), "no message", "#BBBBBB")]:
         ys = [100 * get(out["train"][i], k) for i in its]

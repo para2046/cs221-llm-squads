@@ -225,3 +225,14 @@ identical to SFT's (JSD 0.002 bits).
   - named targets +1.6 (significant).
 - Action rates within each situation show no significant trend.
 - The training-game win rate shows no trend (16 games per round, ±12 points of noise).
+
+## Robustness checks (Nov 19, after reviewing a second agent's handoff)
+
+Script: `scripts/behavior_robustness.py` → `outputs/behavior_robustness.{txt,json}`, `outputs/msg_audit_sample.txt`.
+
+- **Per-game averages vs pooled decisions:** every Table 2 row agrees within 1–2 points. With per-game averages no SFT→MAPPO action change is significant; the message changes are (no message −5.3 points, finish-off calls +4.1, mentions an enemy +5.2).
+- **The "kill" category is mislabelled:** 96–100% of its messages are "finishing eX" calls (finish off a damaged enemy), not kill reports. It is now called "finish-off call" in the report and figures.
+- **Audit (25 random messages per category):** labels are accurate, except *retreat* for 31B, where 78% are real retreats (others are e.g. "low hp, attacking e1").
+- **Checkpoint evals during MAPPO** (the same 16 dev maps every 2 rounds, T=0.7) repeat the training-game trends: no message −3.7 points per 10 rounds (−6.8 to −0.9), finish-off calls +2.4 (+1.9 to +3.0), no action trend, flat win rate.
+- **The second agent's draft LaTeX** used the old share-of-moves "low-hp retreat 25.8→13.7%" and "kite" numbers; those are superseded and were not used.
+- **To do later:** evaluate MAPPO checkpoints (adapter_it4/8/12/16/20) on the 64 test maps.

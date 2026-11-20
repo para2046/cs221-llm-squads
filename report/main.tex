@@ -153,7 +153,11 @@ stop, or an invalid order. Comparing models \emph{within} a situation keeps a mo
 different only because it spends more time in combat; we summarise the overall shift by the
 Jensen--Shannon divergence (JSD, bits) between the situation-weighted action distributions.
 \textbf{Messages} (C2) are sorted into types by keyword: none, names an enemy (``focusing e4''),
-confirms a kill, asks for backup, regroup, retreat, kiting, movement, other. \emph{Say--do} is the
+a finish-off call (``finishing e2''), moving to support a teammate, regroup, retreat, kiting, movement,
+other. A manual audit of 25 random messages per type found the labels accurate except \emph{retreat}
+for 31B (78\% of its ``retreat'' messages really announce a retreat; the rest are e.g.\ ``low hp,
+attacking e1''); the category we first called ``kill'' turned out to be almost entirely (96--100\%)
+``finishing eX'' calls, not reports of a kill. \emph{Say--do} is the
 share of messages naming an enemy whose sender attacks that enemy in the same reply; the \emph{follow
 rate} $= P(a^{v}_{t+1}{=}\text{attack}_e \mid u \text{ named } e \text{ at } t,\ e \text{ in } v\text{'s
 range})$ is compared with chance, $\mathbb{E}[1/|\text{legal attacks}|]$. Per-game features
@@ -217,7 +221,8 @@ starts (SFT 34.5\%, MAPPO 48.3\%, 31B 58.6\%); on grouped starts all are 69--80\
 \centering\footnotesize
 \caption{Behaviour on the same 64 test maps (all decisions pooled; $\approx$13k per model). Action
 rows: share of decisions \emph{in that situation}. $\dagger$: the paired 95\% interval (bootstrap over
-maps) of the change from the column to its left excludes 0.}
+maps) of the change from the column to its left excludes 0, both for pooled decisions and for per-game
+averages (the two agree within 1--2 points on every row).}
 \label{tab:behav}
 \setlength{\tabcolsep}{4pt}
 \begin{tabular}{lrrrr}
@@ -228,7 +233,7 @@ win (\%) & 21.9 & 53.1$^\dagger$ & 60.9 & 70.3 \\
 win after losing the first unit (\%) & 8 & 23 & 52 & -- \\
 \multicolumn{5}{l}{\emph{Actions (\% of decisions in the situation)}} \\
 enemy out of range: move toward & 54 & 97$^\dagger$ & 96 & 97 \\
-enemy out of range: move away & 20 & 2.5$^\dagger$ & 4.0$^\dagger$ & 2.0$^\dagger$ \\
+enemy out of range: move away & 20 & 2.5$^\dagger$ & 4.0 & 2.0$^\dagger$ \\
 enemy out of range: invalid order & 26 & 0.1$^\dagger$ & 0.0 & 0.8 \\
 no enemy visible: stop & 32 & 0.9 & 0.1 & 0.2 \\
 low hp: attack weakest & 65 & 80$^\dagger$ & 82 & 74$^\dagger$ \\
@@ -239,7 +244,7 @@ action JSD to the column on the left (bits) & -- & 0.072 & 0.002 & 0.014 \\
 \multicolumn{5}{l}{\emph{Messages (\% of decisions)}} \\
 no message & 77 & 19 & 14 & 14 \\
 names an enemy & 8.1 & 63$^\dagger$ & 64 & 60$^\dagger$ \\
-confirms a kill & 0.2 & 8.8$^\dagger$ & 12.7$^\dagger$ & 11.5 \\
+finish-off call (``finishing e2'') & 0.2 & 8.8$^\dagger$ & 12.7$^\dagger$ & 11.5$^\dagger$ \\
 movement & 8.6 & 3.9$^\dagger$ & 3.5 & 5.7$^\dagger$ \\
 retreat or kiting & 0.1 & 0.6$^\dagger$ & 0.3 & 3.0$^\dagger$ \\
 say--do (\% of named-enemy messages) & 12 & 80$^\dagger$ & 79 & 77 \\
@@ -254,7 +259,7 @@ message JSD to the column on the left (bits) & -- & 0.375 & 0.009 & 0.016 \\
 \vspace{-6mm}
 \caption{Top: action mix in three situations on the 64 test maps. Bottom: MAPPO training games
 (16 per round, smoothed). Left: action rates stay flat and the win rate does not rise; right: message types, where
-``no message'' falls and kill confirmations rise.}
+``no message'' falls and finish-off calls rise.}
 \label{fig:shift}
 \end{figure}
 \paragraph{Q5: where do the gains come from?} (Table~\ref{tab:behav}, Figure~\ref{fig:shift}.)
@@ -273,26 +278,35 @@ it'' pattern: 63\% of decisions name an enemy and the sender attacks that enemy 
 (12\% untrained).
 
 \emph{SFT$\to$MAPPO: same actions, more talk.} Within every situation MAPPO acts almost exactly like
-SFT (action JSD 0.002 bits, 36 times smaller than the SFT step). The only significant action changes
-are tiny: invalid orders vanish (0.3\%$\to$0\%) and moving away from an out-of-range enemy rises
-slightly (2.5\%$\to$4.0\%). Damaged units move away 2.2\% vs 1.4\% of the time (interval includes 0).
+SFT (action JSD 0.002 bits, 36 times smaller than the SFT step). Averaged per game, no action rate in
+Table~\ref{tab:behav} changes significantly; over pooled decisions only invalid orders (0.3\%$\to$0\%)
+do. Damaged units move away 2.2\% vs 1.4\% of the time (interval includes 0). MAPPO attacks on a
+slightly smaller share of all decisions (76\% vs 79\%), but only because it spends more decisions
+approaching (enemy not visible or out of range: 22\% vs 19\%), not because it attacks less in any
+given situation.
 \emph{An earlier version of this analysis reported that MAPPO ``retreats less'' (26\%$\to$14\%); that
 figure was the share of \emph{moves} that go away, and damaged units rarely move (about 80\% of their
 decisions are attacks), so over all low-hp decisions the difference is negligible.} What does change is
-the messages: kill confirmations rise from 8.8\% to 12.7\% of decisions and silence falls from 19\% to
-14\%. The training games show the same picture over time (Figure~\ref{fig:shift}, bottom; slope per 10
-rounds with 95\% bootstrap interval): ``no message'' falls by 3.7 points ($-5.0$ to $-2.6$), kill
-confirmations rise by 2.1 ($+1.5$ to $+2.7$) and named targets by 1.6 ($+0.2$ to $+3.3$), while no action rate shows a trend and the training win rate does not rise ($-3.9$ points per 10 rounds, $-9.8$ to $+2.2$; 16 games per round). The reward contains nothing about messages, so this
-drift is a by-product of the update (it may follow from messages appearing in winning episodes, or
-from the KL anchor allowing cheap changes in the free-text field). Together with the small KL to SFT
-(Q4), this suggests MAPPO has not yet changed the strategy: the 53\%$\to$61\% difference, itself not
-significant, may be partly noise or come from changes too subtle for these categories (e.g.\ which
-enemy is ``weakest'' when several are close, or timing within a step).
+the messages: finish-off calls (``finishing e2'') rise from 8.8\% to 12.7\% of decisions, messages
+mentioning an enemy from 72\% to 77\%, and silence falls from 19\% to 14\%. Training shows the same drift
+over time (Figure~\ref{fig:shift}, bottom; slope per 10 rounds with 95\% bootstrap interval): in the
+training games ``no message'' falls by 3.7 points ($-5.0$ to $-2.6$), finish-off calls rise by 2.1
+($+1.5$ to $+2.7$) and named targets by 1.6 ($+0.2$ to $+3.3$), while no action rate shows a trend and
+the training win rate does not rise ($-3.9$ points per 10 rounds, $-9.8$ to $+2.2$). Training games use
+random maps and temperature 1.0, so we repeated this on the checkpoint evaluations made every 2 rounds
+on the same 16 development maps at temperature 0.7: the result is the same (no message $-3.7$ per 10
+rounds, $-6.8$ to $-0.9$; finish-off calls $+2.4$, $+1.9$ to $+3.0$; no action trend; win rate
+flat). The reward contains nothing about messages, so this drift is a by-product of the update (it may
+follow from messages appearing in winning episodes, or from the KL anchor allowing cheap changes in the
+free-text field). Together with the small KL to SFT (Q4), this suggests MAPPO has not yet changed the
+strategy: the 53\%$\to$61\% difference, itself not significant, may be partly noise or come from
+changes too subtle for these categories (e.g.\ which enemy is ``weakest'' when several are close).
+Evaluating intermediate checkpoints on the 64 test maps is left for future work.
 
 \emph{The student is still not the teacher.} 31B differs from both 4B models mainly in repositioning:
 damaged units move away 7.4\% of the time (MAPPO 1.4\%), reloading units step back 1.7\% (0.1\%), it
 keeps attacking the weakest less (74\% vs 82\% when damaged) and it talks about retreating and kiting
-more (3.0\% vs 0.3\%). SFT copied 31B's targeting and messages but not these rarer moves, which
+more (3.0\% vs 0.3\% of decisions; about 2.6\% after removing mislabelled messages). SFT copied 31B's targeting and messages but not these rarer moves, which
 imitation learns poorly, and MAPPO did not recover them. These are correlations from logs; a causal
 test (removing teammates' messages at test time) is planned.
 
