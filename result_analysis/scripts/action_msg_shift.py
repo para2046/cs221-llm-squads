@@ -324,7 +324,7 @@ def figs(out, d):
     wins = [100 * out["train"][i]["win"] for i in its]
     axes[0].plot([int(i) for i in its], sm(wins), color="black", lw=1.2, ls="--", label="win rate (train games)")
     axes[0].set_xlabel("MAPPO round", fontsize=8); axes[0].set_ylabel("%", fontsize=8)
-    axes[0].legend(fontsize=6.3, frameon=False); axes[0].tick_params(labelsize=7.5)
+    axes[0].legend(fontsize=6.3, frameon=False, loc="center left", bbox_to_anchor=(0.02, 0.3)); axes[0].tick_params(labelsize=7.5)
     for k, lab, c in [(("msg", None, "target_named"), "named target", "#1F3A5F"), (("msg", None, "kill"), "kill", "#4E9A6B"),
                       (("msg", None, "backup"), "backup", "#8E6FB5"), (("msg", None, "movement"), "movement", "#888888"),
                       (("msg", None, "none"), "no message", "#BBBBBB")]:
@@ -332,7 +332,7 @@ def figs(out, d):
         axes[1].plot([int(i) for i in its], ys, color=c, alpha=0.25, lw=0.8)
         axes[1].plot([int(i) for i in its], sm(ys), color=c, lw=1.6, label=lab)
     axes[1].set_xlabel("MAPPO round", fontsize=8); axes[1].set_ylabel("% of decisions", fontsize=8)
-    axes[1].legend(fontsize=6.3, frameon=False); axes[1].tick_params(labelsize=7.5)
+    axes[1].legend(fontsize=6.3, frameon=False, loc="center right"); axes[1].tick_params(labelsize=7.5)
     for ax in axes:
         for sp in ("top", "right"):
             ax.spines[sp].set_visible(False)

@@ -145,17 +145,22 @@ actor is an LLM starting from SFT, with a KL anchor and no entropy bonus, one PP
 \section{Evaluation Metrics}
 \textbf{Win rate} against the built-in AI; models are compared on the same seeds by the number of maps
 \emph{only one of them} won ($b$ vs $c$; exact McNemar test), and we report 95\% paired bootstrap
-intervals over maps. \textbf{Behaviour} (from logged prompts and replies, per game, then averaged):
-\emph{target switch} (leaves a target still in range), \emph{move away} (a move order away from the
-nearest visible enemy), \emph{low-hp retreat} (the same, below 35\% hp+shield), \emph{kite} (stalker
-reloading with a zealot within 4 moves), \emph{focus} (steps with $\ge$2 attackers where all hit one
-target), \emph{weakest} (attacks on the lowest hp+shield enemy in range), \emph{spread} (mean
-distance of our units to their centroid during the fight), invalid orders. \textbf{Messages} (C2):
-message rate, share naming an enemy, and \emph{follow rate}
-$= P(a^{v}_{t+1}{=}\text{attack}_e \mid u \text{ named } e \text{ at } t,\ e \text{ in } v\text{'s range})$
-against the chance level $\mathbb{E}[1/|\text{legal attacks}|]$. To separate behaviour that
-\emph{causes} an advantage from behaviour that \emph{follows} from being ahead or behind, we also
-compute the features on the \emph{opening} only (steps before either side loses a unit).
+intervals over maps. \textbf{Actions by situation.} Each decision is placed in the situation the unit
+is in: no enemy visible; enemy visible but out of range; in range and ready to fire; in range and
+reloading; low hp ($<$35\% hp+shield, enemy visible). Within each situation we count the action:
+attack the weakest enemy in range, attack another enemy, move toward / away from the nearest enemy,
+stop, or an invalid order. Comparing models \emph{within} a situation keeps a model from looking
+different only because it spends more time in combat; we summarise the overall shift by the
+Jensen--Shannon divergence (JSD, bits) between the situation-weighted action distributions.
+\textbf{Messages} (C2) are sorted into types by keyword: none, names an enemy (``focusing e4''),
+confirms a kill, asks for backup, regroup, retreat, kiting, movement, other. \emph{Say--do} is the
+share of messages naming an enemy whose sender attacks that enemy in the same reply; the \emph{follow
+rate} $= P(a^{v}_{t+1}{=}\text{attack}_e \mid u \text{ named } e \text{ at } t,\ e \text{ in } v\text{'s
+range})$ is compared with chance, $\mathbb{E}[1/|\text{legal attacks}|]$. Per-game features
+(target switch, spread of the squad in the fight, wins after losing the first unit) complete the
+picture. To separate behaviour that \emph{causes} an advantage from behaviour that \emph{follows} from
+being ahead or behind, we also compute features on the \emph{opening} only (steps before either side
+loses a unit).
 
 \section{Results \& Analysis}
 \label{sec:results}
@@ -205,53 +210,90 @@ to 88\% of messages (test seeds).
 \paragraph{Q4: multi-agent RL on top of SFT (in progress).} Starting from SFT, MAPPO (23 rounds, 368 games) reaches 60.9\% on the test seeds vs 53.1\% for SFT (20 vs 15
 maps won only by one side; paired 95\% interval $-9$ to $+27$ points): a gain that is \emph{not yet
 established}. Diagnostics show the policy moves little per round (KL to SFT $\approx$0.005--0.01, PPO
-clip fraction $<$1\%), consistent with small, slow changes. Gaps between models are mostly on split
+clip fraction $<$1\%), consistent with small, slow changes; Q5 shows the changes are mostly in messages. Gaps between models are mostly on split
 starts (SFT 34.5\%, MAPPO 48.3\%, 31B 58.6\%); on grouped starts all are 69--80\%.
 
 \begin{table}[t]
 \centering\footnotesize
-\caption{Behaviour per model on the same 64 test maps (mean over games). $\dagger$: the paired 95\%
-interval (bootstrap over maps) of the change from the column to its left excludes 0
-(untrained$\to$SFT and SFT$\to$MAPPO).}
+\caption{Behaviour on the same 64 test maps (all decisions pooled; $\approx$13k per model). Action
+rows: share of decisions \emph{in that situation}. $\dagger$: the paired 95\% interval (bootstrap over
+maps) of the change from the column to its left excludes 0.}
 \label{tab:behav}
-\setlength{\tabcolsep}{5pt}
+\setlength{\tabcolsep}{4pt}
 \begin{tabular}{lrrrr}
 \toprule
  & untrained & SFT & MAPPO & 31B \\
 \midrule
 win (\%) & 21.9 & 53.1$^\dagger$ & 60.9 & 70.3 \\
 win after losing the first unit (\%) & 8 & 23 & 52 & -- \\
-invalid orders (\%) & 5.4 & 0.2$^\dagger$ & 0.0$^\dagger$ & 0.6 \\
-target switch (\%) & 13.8 & 2.1$^\dagger$ & 2.7 & 2.8 \\
-move away, enemy visible (\%) & 28.7 & 6.2$^\dagger$ & 4.4 & 14.6 \\
-low-hp retreat (\%) & 42.0 & 25.8$^\dagger$ & 13.7$^\dagger$ & 42.7 \\
-stalker kite (\%) & 0.7 & 5.3$^\dagger$ & 1.8$^\dagger$ & 20.5 \\
-focus (\%) & 37.7 & 33.7 & 40.6 & 43.7 \\
-weakest (\%) & 85.1 & 89.7$^\dagger$ & 90.2 & 92.9 \\
-spread in fight & 4.04 & 3.21$^\dagger$ & 2.86 & 3.10 \\
-messages naming an enemy (\% of decisions) & 8.9 & 71.5$^\dagger$ & 76.7$^\dagger$ & 73.0 \\
+\multicolumn{5}{l}{\emph{Actions (\% of decisions in the situation)}} \\
+enemy out of range: move toward & 54 & 97$^\dagger$ & 96 & 97 \\
+enemy out of range: move away & 20 & 2.5$^\dagger$ & 4.0$^\dagger$ & 2.0$^\dagger$ \\
+enemy out of range: invalid order & 26 & 0.1$^\dagger$ & 0.0 & 0.8 \\
+no enemy visible: stop & 32 & 0.9 & 0.1 & 0.2 \\
+low hp: attack weakest & 65 & 80$^\dagger$ & 82 & 74$^\dagger$ \\
+low hp: move away & 9.0 & 2.2$^\dagger$ & 1.4 & 7.4$^\dagger$ \\
+reloading in range: move away & 0.5 & 0.2$^\dagger$ & 0.1 & 1.7$^\dagger$ \\
+target switch (\% of attacks) & 13.8 & 2.1$^\dagger$ & 2.7 & 2.8 \\
+action JSD to the column on the left (bits) & -- & 0.072 & 0.002 & 0.014 \\
+\multicolumn{5}{l}{\emph{Messages (\% of decisions)}} \\
+no message & 77 & 19 & 14 & 14 \\
+names an enemy & 8.1 & 63$^\dagger$ & 64 & 60$^\dagger$ \\
+confirms a kill & 0.2 & 8.8$^\dagger$ & 12.7$^\dagger$ & 11.5 \\
+movement & 8.6 & 3.9$^\dagger$ & 3.5 & 5.7$^\dagger$ \\
+retreat or kiting & 0.1 & 0.6$^\dagger$ & 0.3 & 3.0$^\dagger$ \\
+say--do (\% of named-enemy messages) & 12 & 80$^\dagger$ & 79 & 77 \\
+message JSD to the column on the left (bits) & -- & 0.375 & 0.009 & 0.016 \\
 \bottomrule
 \end{tabular}
 \end{table}
-\paragraph{Q5: where do the gains come from?} (Table~\ref{tab:behav}.)
-\emph{Untrained$\to$SFT: the squad stops wavering.} SFT does not clearly win the opening (the
-untrained model loses a unit first in 61\% of games, SFT in 47\%; the interval includes 0); it wins the
-fight that follows (after losing the first unit: 8\%$\to$23\% wins; after killing first:
-45\%$\to$83\%; kills per game 3.1$\to$4.2, own losses 4.5$\to$3.7). The untrained model leaves targets
-that are still in range (14\% of attacks vs 2\%), walks away from visible enemies (29\% of moves vs
-6\%), fights more spread out and issues invalid orders (5\%); it is picked off unit by unit. These
-differences are already present in the opening, before any unit dies, so they are a change of play,
-not a consequence of winning. SFT also targets the weakest enemy more often and talks like the teacher
-(named targets in 72\% of decisions vs 9\%).
-\emph{SFT$\to$MAPPO: fewer retreats.} The opening is unchanged (each loses a unit first in 47--48\% of
-games); the whole gain is in fights after the first loss (23\%$\to$52\% wins). The significant changes
-all point one way: damaged units retreat less (26\%$\to$14\%; when behind 64\%$\to$15\%), stalkers kite
-less (5\%$\to$2\%), and all attackers hit one target more often (34\%$\to$41\%, borderline). Retreating
-units stop dealing damage; MAPPO learned to keep them in the fight.
-\emph{RL does not move the student toward the teacher.} 31B kites (21\%), retreats when damaged (43\%)
-and moves away from enemies (15\%) far more than either 4B model. SFT copied 31B's targeting and
-messages but not these rarer repositioning moves, which imitation learns poorly; MAPPO moved further
-away from them, toward a simpler stay-and-fight strategy. These are correlations from logs; a causal
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{fig_actions.pdf}\\[-1mm]
+\includegraphics[width=\linewidth]{fig_mappo_trajectory.pdf}
+\vspace{-6mm}
+\caption{Top: action mix in three situations on the 64 test maps. Bottom: MAPPO training games
+(16 per round, smoothed). Left: action rates stay flat and the win rate does not rise; right: message types, where
+``no message'' falls and kill confirmations rise.}
+\label{fig:shift}
+\end{figure}
+\paragraph{Q5: where do the gains come from?} (Table~\ref{tab:behav}, Figure~\ref{fig:shift}.)
+\emph{Untrained$\to$SFT: a new way of playing.} SFT does not clearly win the opening (the untrained
+model loses a unit first in 61\% of games, SFT in 47\%; the interval includes 0); it wins the fight
+that follows (after losing the first unit: 8\%$\to$23\% wins; after killing first: 45\%$\to$83\%).
+The action change is large (JSD 0.072 bits) and is concentrated in \emph{getting into the fight}:
+when an enemy is visible but out of range, the untrained model moves toward it only 54\% of the time;
+it walks away (20\%) or orders an attack it cannot make (26\% invalid), and with no enemy in sight it
+often stops (32\%). SFT moves in 97\% of the time. In combat it also switches targets less (14\%$\to$2\%
+of attacks) and, when damaged, keeps attacking the weakest enemy (65\%$\to$80\%). These differences are
+already present in the opening, before any unit dies, so they are a change of play, not a consequence
+of winning. The message change is larger still (JSD 0.375): the untrained model is mostly silent
+(77\%) and otherwise talks about movement, while SFT adopts the teacher's ``call a target, then hit
+it'' pattern: 63\% of decisions name an enemy and the sender attacks that enemy in 80\% of them
+(12\% untrained).
+
+\emph{SFT$\to$MAPPO: same actions, more talk.} Within every situation MAPPO acts almost exactly like
+SFT (action JSD 0.002 bits, 36 times smaller than the SFT step). The only significant action changes
+are tiny: invalid orders vanish (0.3\%$\to$0\%) and moving away from an out-of-range enemy rises
+slightly (2.5\%$\to$4.0\%). Damaged units move away 2.2\% vs 1.4\% of the time (interval includes 0).
+\emph{An earlier version of this analysis reported that MAPPO ``retreats less'' (26\%$\to$14\%); that
+figure was the share of \emph{moves} that go away, and damaged units rarely move (about 80\% of their
+decisions are attacks), so over all low-hp decisions the difference is negligible.} What does change is
+the messages: kill confirmations rise from 8.8\% to 12.7\% of decisions and silence falls from 19\% to
+14\%. The training games show the same picture over time (Figure~\ref{fig:shift}, bottom; slope per 10
+rounds with 95\% bootstrap interval): ``no message'' falls by 3.7 points ($-5.0$ to $-2.6$), kill
+confirmations rise by 2.1 ($+1.5$ to $+2.7$) and named targets by 1.6 ($+0.2$ to $+3.3$), while no action rate shows a trend and the training win rate does not rise ($-3.9$ points per 10 rounds, $-9.8$ to $+2.2$; 16 games per round). The reward contains nothing about messages, so this
+drift is a by-product of the update (it may follow from messages appearing in winning episodes, or
+from the KL anchor allowing cheap changes in the free-text field). Together with the small KL to SFT
+(Q4), this suggests MAPPO has not yet changed the strategy: the 53\%$\to$61\% difference, itself not
+significant, may be partly noise or come from changes too subtle for these categories (e.g.\ which
+enemy is ``weakest'' when several are close, or timing within a step).
+
+\emph{The student is still not the teacher.} 31B differs from both 4B models mainly in repositioning:
+damaged units move away 7.4\% of the time (MAPPO 1.4\%), reloading units step back 1.7\% (0.1\%), it
+keeps attacking the weakest less (74\% vs 82\% when damaged) and it talks about retreating and kiting
+more (3.0\% vs 0.3\%). SFT copied 31B's targeting and messages but not these rarer moves, which
+imitation learns poorly, and MAPPO did not recover them. These are correlations from logs; a causal
 test (removing teammates' messages at test time) is planned.
 
 \section{Next Steps}
